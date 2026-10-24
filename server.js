@@ -150,10 +150,10 @@ app.post('/api/scan', async (req, res) => {
 });
 
 // Start Server
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`================================================================`);
   console.log(`  BYBIT DECAY MEAN REVERSION LIVE WATCHER`);
-  console.log(`  Listening on: http://localhost:${PORT}`);
+  console.log(`  Listening on: http://0.0.0.0:${PORT}`);
   console.log(`  Northflank Port: ${PORT}`);
   console.log(`================================================================`);
 
