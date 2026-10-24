@@ -1,0 +1,29 @@
+{
+  "name": "bybit-decay-screener",
+  "version": "1.0.0",
+  "description": "Bybit Linear Climax Decay Screener with Zero-Liquidation Safe Zones and Baseline Sorting",
+  "main": "server.js",
+  "scripts": {
+    "start": "node launcher.js",
+    "server": "node server.js",
+    "dev": "node launcher.js"
+  },
+  "keywords": [
+    "bybit",
+    "mean-reversion",
+    "climax-decay",
+    "northflank",
+    "grid-bot"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^18.0.9",
+    "express": "^5.3.0",
+    "mongodb": "^6.21.0",
+    "ws": "^8.22.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

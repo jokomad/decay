@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bybit Linear Climax Decay Screener | Zero-Liquidation Safe Zones</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header-bar">
+      <div class="brand-group">
+        <span class="bybit-badge">BYBIT FUTURES</span>
+        <div class="brand-titles">
+          <h1>⚡ Bybit Decay Screener</h1>
+          <p>Climax Mean Reversion &amp; Zero-Liquidation Safe Zones (Linear USDT)</p>
+        </div>
+      </div>
+      <div class="header-badges">
+        <span class="header-tag safe">🛡️ Safeguard 1: Stocks &amp; Delistings Excluded</span>
+        <span class="header-tag safe">📅 Age: &gt;45 Days Old</span>
+        <span class="header-tag rate">⚡ Rate Guard: &lt;300 / 5s</span>
+        <button id="btn-rescan" class="btn-primary">
+          <span>🔄</span> Force 15M Cycle
+        </button>
+      </div>
+    </header>
+
+    <!-- Master Live 15M Watcher Ribbon -->
+    <div class="live-watcher-bar monospace">
+      <div class="live-watcher-item">
+        <span class="live-pulse"></span>
+        <span class="live-label">LIVE WATCHER:</span>
+        <span id="lw-status" class="live-val green">ACTIVE</span>
+      </div>
+      <div class="live-watcher-item">
+        <span class="live-label">🕒 BYBIT SERVER TIME:</span>
+        <span id="lw-bybit-time" class="live-val cyan">--:--:-- UTC</span>
+      </div>
+      <div class="live-watcher-item">
+        <span class="live-label">⏱️ NEXT SIGNAL CHECK (:01/:16/:31/:46):</span>
+        <span id="lw-next-cycle" class="live-val amber">--:--:03 UTC (--s)</span>
+      </div>
+      <div class="live-watcher-item">
+        <span class="live-label">📡 WEBSOCKET:</span>
+        <span id="lw-ws-status" class="live-val green">CONNECTED</span>
+      </div>
+      <div class="live-watcher-item">
+        <span class="live-label">💾 DB CACHE:</span>
+        <span id="lw-db-status" class="live-val primary">INITIALIZING...</span>
+      </div>
+      <div class="live-watcher-item">
+        <span class="live-label">🧹 DAILY RESTART:</span>
+        <span id="lw-restart-status" class="live-val amber">04:05 UTC</span>
+      </div>
+      <div class="live-watcher-item ml-auto" style="display: flex; gap: 8px;">
+        <button id="btn-view-bots" class="btn-signals" style="border-color: var(--primary); color: #7dd3fc; background: rgba(56, 189, 248, 0.15);">
+          <span>🤖</span> Active Bots (<span id="bots-badge-count">0</span>)
+        </button>
+        <button id="btn-view-signals" class="btn-signals">
+          <span>🚨</span> Live Signals (<span id="signals-badge-count">0</span>)
+        </button>
+      </div>
+    </div>
+
+    <!-- Scan Progress Bar (Visible during scan) -->
+    <div id="scan-progress-box" class="scan-progress-box" style="display: none;">
+      <div class="progress-info">
+        <span id="progress-status-text">Scanning Bybit Linear USDT Pairs...</span>
+        <span id="progress-pct-text" class="monospace">0%</span>
+      </div>
+      <div class="progress-track">
+        <div id="progress-bar-fill" class="progress-bar"></div>
+      </div>
+    </div>
+
+    <!-- Stats Grid -->
+    <section class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Linear Instruments</div>
+        <div id="stat-total-inst" class="stat-val monospace">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Stocks Excluded (Safeguard 1)</div>
+        <div id="stat-stocks-excl" class="stat-val monospace" style="color: var(--amber);">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Delistings Excluded (Safeguard 1)</div>
+        <div id="stat-delist-excl" class="stat-val monospace" style="color: var(--amber);">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Valid Established (&gt;45d)</div>
+        <div id="stat-valid-coins" class="stat-val monospace primary">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Active Decays Found</div>
+        <div id="stat-active-decays" class="stat-val monospace">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Zero-Liq Safe Zone</div>
+        <div id="stat-safe-count" class="stat-val monospace green">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Near Baseline (&lt;15%)</div>
+        <div id="stat-near-base" class="stat-val monospace green">--</div>
+      </div>
+    </section>
+
+    <!-- Controls & Filters Bar -->
+    <section class="controls-bar">
+      <div class="filter-left">
+        <input type="text" id="search-input" class="search-box monospace" placeholder="Search symbol (e.g. PEPE, SOL)...">
+        
+        <select id="min-gain-select" class="select-box monospace">
+          <option value="25">Min Gain: +25%</option>
+          <option value="50">Min Gain: +50%</option>
+          <option value="100">Min Gain: +100%</option>
+          <option value="200">Min Gain: +200%</option>
+        </select>
+
+        <button id="btn-toggle-safe-zone" class="btn-toggle active">
+          🛡️ Safe Zone Only
+        </button>
+      </div>
+
+      <div class="filter-right">
+        <div class="sort-btn-group">
+          <!-- Default: Closest to 15M Upper Keltner Band -->
+          <button id="sort-keltner-btn" class="btn-sort active" data-sort="keltner" title="Coins touching or closest to 15M Upper Keltner Band">
+            🔥 15M Upper KC
+          </button>
+          <button id="sort-closest-btn" class="btn-sort" data-sort="closest" title="Display coins closest to their origin baseline floor">
+            🎯 Closest to Base
+          </button>
+          <button id="sort-furthest-btn" class="btn-sort" data-sort="furthest" title="Display coins furthest from their origin baseline floor">
+            🚀 Furthest from Base
+          </button>
+          <button id="sort-gain-btn" class="btn-sort" data-sort="gain-desc">
+            🔥 Highest Gain
+          </button>
+          <button id="sort-days-btn" class="btn-sort" data-sort="days-asc">
+            ⏱️ Recent Peaks
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pairs Container -->
+    <main id="pairs-container" class="pairs-grid">
+      <div class="empty-box">Connecting to Bybit Screener server...</div>
+    </main>
+  </div>
+
+  <!-- Detail Modal -->
+  <div id="detail-modal" class="modal-overlay" aria-hidden="true">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="symbol-badge-row">
+          <span id="modal-symbol" class="symbol-name monospace">--</span>
+          <span id="modal-safe-badge" class="badge-tag safe-zone">🛡️ SAFE ZONE</span>
+          <span id="modal-drop-badge" class="badge-tag drop monospace">--</span>
+          <span id="modal-days-badge" class="badge-tag days monospace">--</span>
+        </div>
+        <button id="modal-close-btn" class="modal-close-btn">&times;</button>
+      </div>
+
+      <!-- Timeframe Switcher Tabs in Modal -->
+      <div class="modal-tab-bar">
+        <button id="modal-tab-15m" class="modal-tab-btn active">15M Keltner Execution</button>
+        <button id="modal-tab-1d" class="modal-tab-btn">1D Macro Decay</button>
+      </div>
+
+      <!-- Interactive Modal Chart Canvas (Defaults to 15M Keltner Bands) -->
+      <div class="chart-container" style="margin-bottom: 14px;">
+        <div id="modal-chart-label" class="chart-header-tag monospace">15M Candlestick Chart with Keltner Channel (20 EMA, 2.0 ATR)</div>
+        <canvas id="modal-chart-canvas" class="inline-1d-canvas" width="860" height="240"></canvas>
+      </div>
+
+      <!-- 15M Keltner Trigger Box -->
+      <div class="kc-trigger-box">
+        <div class="kc-status-row">
+          <span class="monospace" style="font-size: 11px; color: var(--text-dim); font-weight: 700;">🎯 15M KELTNER BAND TRIGGER (20 EMA, 2.0 ATR)</span>
+          <span id="modal-kc-status-badge" class="badge-tag safe-zone monospace">--</span>
+        </div>
+        <div class="card-anatomy-row monospace" style="margin-bottom: 0; grid-template-columns: repeat(5, 1fr);">
+          <div>
+            <div class="mini-item-label">🔴 Upper Keltner Band</div>
+            <div id="modal-kc-upper-val" class="mini-item-val" style="color: var(--red);">--</div>
+          </div>
+          <div>
+            <div class="mini-item-label">🔵 Middle (20 EMA)</div>
+            <div id="modal-kc-mid-val" class="mini-item-val" style="color: var(--primary);">--</div>
+          </div>
+          <div>
+            <div class="mini-item-label">🟣 Lower Keltner Band</div>
+            <div id="modal-kc-low-val" class="mini-item-val" style="color: var(--purple);">--</div>
+          </div>
+          <div>
+            <div class="mini-item-label">🎯 Distance to Upper KC</div>
+            <div id="modal-kc-dist-val" class="mini-item-val">--</div>
+          </div>
+          <div>
+            <div class="mini-item-label">📏 Channel Spread (TP Room)</div>
+            <div id="modal-kc-spread-val" class="mini-item-val">--</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Macro Anatomy Details -->
+      <div class="card-anatomy-row monospace" style="font-size: 13px; padding: 12px; margin-bottom: 16px;">
+        <div>
+          <div class="mini-item-label">🚀 1. Pump Start Breakout</div>
+          <div id="modal-pump-val" class="mini-item-val" style="color: var(--green);">--</div>
+        </div>
+        <div>
+          <div class="mini-item-label">🔥 2. Climax Peak</div>
+          <div id="modal-peak-val" class="mini-item-val" style="color: var(--amber);">--</div>
+        </div>
+        <div>
+          <div class="mini-item-label">🏛️ 3. Origin Baseline Floor</div>
+          <div id="modal-base-val" class="mini-item-val" style="color: var(--primary);">--</div>
+        </div>
+        <div>
+          <div class="mini-item-label">⏱️ 4. Room to Baseline</div>
+          <div id="modal-room-val" class="mini-item-val" style="color: var(--red);">--</div>
+        </div>
+      </div>
+
+      <!-- Proven Zero-Liquidation Grid Setup with Copy Buttons -->
+      <div class="blueprint-card">
+        <div class="blueprint-header">
+          <span>🛡️ BYBIT PROVEN ZERO-LIQUIDATION SHORT GRID BLUEPRINT</span>
+        </div>
+        <div class="blueprint-grid monospace">
+          <div class="blueprint-item">
+            <div class="blueprint-label">Leverage</div>
+            <div class="blueprint-val" style="color: var(--green);">2.0x Cross / Isolated</div>
+          </div>
+          <div class="blueprint-item">
+            <div class="blueprint-label">Number of Grids</div>
+            <div class="blueprint-val">40 (Geometric)</div>
+          </div>
+          <div class="blueprint-item">
+            <div class="blueprint-label">Grid Upper Limit (+70%)</div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span id="modal-upper-limit" class="blueprint-val" style="color: var(--red);">--</span>
+              <button id="btn-copy-upper" class="btn-copy monospace">Copy</button>
+            </div>
+          </div>
+          <div class="blueprint-item">
+            <div class="blueprint-label">Grid Lower Limit (-30%)</div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span id="modal-lower-limit" class="blueprint-val" style="color: var(--green);">--</span>
+              <button id="btn-copy-lower" class="btn-copy monospace">Copy</button>
+            </div>
+          </div>
+          <div class="blueprint-item">
+            <div class="blueprint-label">Take Profit Target</div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span id="modal-tp-val" class="blueprint-val" style="color: var(--green);">+$1.00 USDT</span>
+              <button id="btn-copy-tp" class="btn-copy monospace">Copy</button>
+            </div>
+          </div>
+          <div class="blueprint-item">
+            <div class="blueprint-label">Historical Liquidation Rate</div>
+            <div class="blueprint-val" style="color: var(--green);">0.00% (Absolute Zero)</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <span class="monospace" style="font-size: 12px; color: var(--text-dim);">
+          Northflank Node Server • Local Port 3000 • Bybit Linear API v5
+        </span>
+        <a id="modal-bybit-btn" href="#" target="_blank" class="btn-primary">
+          <span>↗</span> Open on Bybit Futures
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Live Signals Modal -->
+  <div id="signals-modal" class="modal-backdrop" aria-hidden="true">
+    <div class="modal-card signals-modal-card">
+      <div class="modal-header">
+        <div class="modal-title-row">
+          <span class="symbol-name monospace">🚨 Live 15M Entry Signals Feed</span>
+          <span class="badge-tag safe-zone">CONFIRMED 15M FINISHED CANDLES</span>
+        </div>
+        <button id="signals-modal-close" class="modal-close">&times;</button>
+      </div>
+
+      <div class="signals-info-banner monospace">
+        Signals are verified strictly at minute :01, :16, :31, :46 on the previous confirmed 15M candle. Multiple signals are deployed from highest Keltner spread to shortest.
+      </div>
+
+      <div id="signals-list-container" class="signals-list">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Active Bots Modal -->
+  <div id="bots-modal" class="modal-backdrop" aria-hidden="true">
+    <div class="modal-card signals-modal-card">
+      <div class="modal-header">
+        <div class="modal-title-row">
+          <span class="symbol-name monospace">🤖 Active Running Bybit Short Grid Bots</span>
+          <span id="bots-modal-status-badge" class="badge-tag safe-zone">60s LIVE WATCHER ACTIVE</span>
+        </div>
+        <button id="bots-modal-close" class="modal-close">&times;</button>
+      </div>
+
+      <div class="signals-info-banner monospace" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+        <span>Bot Strategy: 2.0x Leverage • 40 Geometric Grids • Range [-30%, +70%] • TP: +1.00 USDT (1%)</span>
+        <button id="btn-force-check-bots" class="btn-copy monospace" style="padding: 4px 10px;">🔄 Check Bots Now</button>
+      </div>
+
+      <div id="bots-list-container" class="signals-list">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast-msg monospace"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
