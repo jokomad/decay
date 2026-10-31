@@ -6,7 +6,10 @@
   "scripts": {
     "start": "node launcher.js",
     "server": "node server.js",
-    "dev": "node launcher.js"
+    "dev": "node launcher.js",
+    "test:sgs": "node scripts/test_sgs_unit.js && node scripts/test_watcher_priority.js && node scripts/test_scanner_sgs.js",
+    "test:sgs:parity": "node scripts/test_sgs_parity.js",
+    "test:bots": "node scripts/test_grid_bot_fixes.js"
   },
   "keywords": [
     "bybit",

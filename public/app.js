@@ -152,17 +152,17 @@ async function fetchSignals() {
     if (!container) return;
 
     if (signals.length === 0) {
-      container.innerHTML = '<div class="signal-empty">No active signals triggered yet. When a 15M finished candle breaches the Upper KC with Spread &ge;1.25%, the entry signal will display here.</div>';
+      container.innerHTML = '<div class="signal-empty">No active signals triggered yet. SGS-1 safety signals and 15M Upper-KC entry signals will display here.</div>';
       return;
     }
 
     container.innerHTML = signals.map(s => `
-      <div class="signal-card ${s.signalType === 'FIRST_TOUCH' ? 'first-touch' : ''}">
+      <div class="signal-card ${s.signalType === 'FIRST_TOUCH' ? 'first-touch' : ''} ${s.signalType === 'SGS_1' ? 'sgs-signal' : ''}">
         <div class="signal-header-row monospace">
           <div>
             <b style="font-size: 15px; color: #fff;">${s.symbol}</b>
-            <span class="badge-tag ${s.signalType === 'FIRST_TOUCH' ? 'kc-touch' : 'kc-near'}" style="margin-left: 8px;">
-              ${s.signalType === 'FIRST_TOUCH' ? '🔥 FRESH FIRST TOUCH' : '⚡ EXTENDED TOUCH'}
+            <span class="badge-tag ${s.signalType === 'SGS_1' ? 'safe-zone' : (s.signalType === 'FIRST_TOUCH' ? 'kc-touch' : 'kc-near')}" style="margin-left: 8px;">
+              ${s.signalType === 'SGS_1' ? '🛡️ SGS-1 SAFETY' : (s.signalType === 'FIRST_TOUCH' ? '🔥 FRESH FIRST TOUCH' : '⚡ EXTENDED TOUCH')}
             </span>
             ${s.isHighVelocitySpread ? '<span class="badge-tag safe-zone">⚡ FAST TP</span>' : ''}
           </div>
@@ -177,12 +177,16 @@ async function fetchSignals() {
             <b>$${formatPrice(s.currentPrice)}</b>
           </div>
           <div>
-            <span style="color: var(--text-dim);">Upper KC:</span>
-            <b style="color: var(--red);">$${formatPrice(s.kcUpper)}</b>
+            <span style="color: var(--text-dim);">${s.signalType === 'SGS_1' ? 'Daily ATR' : 'Upper KC'}:</span>
+            <b style="color: var(--red);">${s.signalType === 'SGS_1'
+              ? (s.sgs?.dAtrPct != null ? s.sgs.dAtrPct.toFixed(2) + '%' : '--')
+              : '$' + formatPrice(s.kcUpper)}</b>
           </div>
           <div>
-            <span style="color: var(--text-dim);">KC Spread:</span>
-            <b style="color: var(--green);">${s.kcSpreadPct ? s.kcSpreadPct.toFixed(2) + '%' : '--'}</b>
+            <span style="color: var(--text-dim);">${s.signalType === 'SGS_1' ? 'Daily RSI' : 'KC Spread'}:</span>
+            <b style="color: var(--green);">${s.signalType === 'SGS_1'
+              ? (s.sgs?.dRsi != null ? s.sgs.dRsi.toFixed(1) : '--')
+              : (s.kcSpreadPct ? s.kcSpreadPct.toFixed(2) + '%' : '--')}</b>
           </div>
           <div>
             <span style="color: var(--text-dim);">Room to Base:</span>
@@ -352,7 +356,12 @@ async function closeBotManual(botId, symbol) {
       showToast(`Bot ${symbol} closed! PnL: $${result.pnl || 0}`);
       await fetchBots();
     } else {
-      alert(`Failed to close bot: ${result.error || result.reason}`);
+      const reason = result.result?.retMsg
+        || result.result?.reason
+        || result.message
+        || 'Close not confirmed by Bybit';
+      alert(`Failed to close bot: ${reason}`);
+      await fetchBots();
     }
   } catch (err) {
     showToast(`Error: ${err.message}`);

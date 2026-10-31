@@ -92,7 +92,10 @@ app.post('/api/bots/close', async (req, res) => {
   if (!botId) return res.status(400).json({ success: false, message: 'Missing botId' });
 
   const result = await watcher.botManager.closeGridBot(botId, symbol, null, reason || 'USER_REQUEST');
-  res.json({ success: true, result });
+  if (result && result.success) {
+    return res.json({ success: true, result });
+  }
+  return res.status(502).json({ success: false, result });
 });
 
 // Force Check Running Bots immediately
@@ -102,7 +105,9 @@ app.post('/api/bots/check', async (req, res) => {
   res.json({
     success: true,
     activeCount: activeBots.length,
-    closedCount: checkResult?.closedCount || 0,
+    closedCount: checkResult?.closed || 0,
+    staleCount: checkResult?.stale || 0,
+    errorCount: checkResult?.errors || 0,
     activeBots
   });
 });
