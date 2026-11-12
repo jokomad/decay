@@ -196,7 +196,7 @@ async function fetchSignals() {
 
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px; font-size: 11px;" class="monospace">
           <span style="color: var(--text-muted);">
-            Suggested Grid: 2.0x • 40 Grids • Range [-$${formatPrice(s.suggestedGrid?.lowerLimit)}, +$${formatPrice(s.suggestedGrid?.upperLimit)}] • TP: +$1.00
+            Suggested Grid: 2.0x • 80 Grids • Range [-$${formatPrice(s.suggestedGrid?.lowerLimit)}, +$${formatPrice(s.suggestedGrid?.upperLimit)}] • TP: +$1.00
           </span>
           <a href="https://www.bybit.com/trade/usdt/${s.symbol}" target="_blank" class="btn-copy" style="text-decoration: none;">
             Open on Bybit ↗
@@ -239,7 +239,7 @@ async function fetchBots() {
           <div style="font-size: 28px; margin-bottom: 8px;">🤖</div>
           <b>No Active Bybit Short Grid Bots</b>
           <p style="margin-top: 6px; font-size: 12px; color: var(--text-dim);">
-            When a verified 15M entry signal triggers and API keys are configured, a Short Grid Bot (2x Cross, 40 Grids, 1% TP) will launch automatically and display here.
+            When a verified 15M entry signal triggers and API keys are configured, a Short Grid Bot (2x Cross, 80 Grids, 1% TP) will launch automatically and display here.
           </p>
         </div>
       `;

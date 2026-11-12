@@ -1,10 +1,9 @@
 'use strict';
 
 /**
- * Signal-priority test:
- * - If SGS-1 and Keltner both fire on the same symbol, only SGS-1 is emitted.
- * - SGS-1 candidates are executed before Keltner candidates.
- * - Different symbols keep their own signal.
+ * SGS-only test:
+ * - SGS-1 candidates are the only candidates executed.
+ * - Keltner candidates are computed but do not launch bots.
  */
 
 const assert = require('assert');
@@ -47,10 +46,11 @@ async function main() {
 
   await LiveWatcher.prototype._evaluateAndExecuteSignals.call(fake);
 
-  assert.deepStrictEqual(emitted, ['SGS_1:AAAUSDT', 'FIRST_TOUCH:BBBUSDT'], 'SGS-1 must win the same symbol and run first');
-  assert.deepStrictEqual(launched, ['SGS_1:AAAUSDT', 'FIRST_TOUCH:BBBUSDT'], 'launch order must match');
+  assert.deepStrictEqual(emitted, ['SGS_1:AAAUSDT'], 'only SGS-1 may be emitted');
+  assert.deepStrictEqual(launched, ['SGS_1:AAAUSDT'], 'only SGS-1 may launch a bot');
   assert.strictEqual(emitted.filter(x => x.endsWith(':AAAUSDT')).length, 1, 'no duplicate on AAAUSDT');
-  console.log('PASS: SGS-1 priority / dedupe test');
+  assert.strictEqual(emitted.some(x => x.startsWith('FIRST_TOUCH:') || x.startsWith('EXTENDED_TOUCH:')), false, 'Keltner must not be emitted');
+  console.log('PASS: SGS-only signal test');
 }
 
 main().catch(err => {
