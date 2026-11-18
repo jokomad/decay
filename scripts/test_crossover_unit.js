@@ -261,4 +261,112 @@ if (fs.existsSync(historicalPath)) {
   console.log('  ⚠️ Historical dataset not found at expected path. Skipping optional test 5.');
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. Close-Time Synchronized Live Evaluation (Non-1m Fast & Macro Pairs)
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('Test 6: Live Close-Time Evaluation (5m_15m, 3m_6h, 30m_12h, 1h_6h)');
+
+{
+  // Align start to an exact 12h UTC boundary so all buckets (1m, 3m, 5m, 15m, 30m, 1h, 6h, 12h) align cleanly
+  const h12 = 12 * 60 * 60 * 1000;
+  const startMs = Math.floor(1700000000000 / h12) * h12;
+  const minMs = 60 * 1000;
+
+  // Build 756 1m candles (12h + 36m): steady at 105, then sharp drop to 1 during [12:30, 12:35)
+  // (19 * 105 + 1) / 20 = 99.8 < 100 (crosses below both 15m SMA=105 and 6h SMA=100)
+  const sim1m = [];
+  const dropStartMin = 750; // 12:30
+  for (let m = 0; m < 756; m++) {
+    const close = (m >= dropStartMin && m < dropStartMin + 5) ? 1 : 105;
+    sim1m.push({ time: startMs + m * minMs, open: close, high: close, low: close, close, volume: 10 });
+  }
+
+  // Macro 6h and 12h candles steady at 100
+  const sim6h = [];
+  const sim12h = [];
+  for (let i = 0; i < 25; i++) {
+    sim6h.push({ time: startMs - (24 - i) * 6 * 3600 * 1000, close: 100 });
+    sim12h.push({ time: startMs - (24 - i) * 12 * 3600 * 1000, close: 100 });
+  }
+
+  // Case A: Evaluate 5m_15m right after 12:35:00 close (at 12:35:03)
+  const t1235 = startMs + 755 * minMs + 3000;
+  const c1mAt1235 = sim1m.slice(0, 755); // closed candles up to 12:34 (closes at 12:35:00)
+  const candlesAt1235 = {
+    '1m': c1mAt1235,
+    '3m': Indicator.aggregate1mCandles(c1mAt1235, 3, { completedOnly: true, referenceTime: t1235 }),
+    '5m': Indicator.aggregate1mCandles(c1mAt1235, 5, { completedOnly: true, referenceTime: t1235 }),
+    '15m': Indicator.aggregate1mCandles(c1mAt1235, 15, { completedOnly: true, referenceTime: t1235 }),
+    '30m': Indicator.aggregate1mCandles(c1mAt1235, 30, { completedOnly: true, referenceTime: t1235 }),
+    '6h': sim6h,
+    '12h': sim12h
+  };
+
+  const sig5m15m = Indicator.evaluateSymbolCrossovers({
+    symbol: 'TESTUSDT',
+    candlesByTf: candlesAt1235,
+    pairs: '5m_15m',
+    referenceTime: t1235,
+    stepMs: 60 * 1000
+  });
+  assert.strictEqual(sig5m15m.length, 1, '5m_15m MUST fire right at 12:35:03 when the 12:30-12:35 5m bar closes');
+  assert.strictEqual(sig5m15m[0].pairId, '5m_15m');
+
+  // Case B: One minute later (12:36:03) 5m_15m MUST NOT double-fire
+  const t1236 = startMs + 756 * minMs + 3000;
+  const candlesAt1236 = {
+    '1m': sim1m,
+    '5m': Indicator.aggregate1mCandles(sim1m, 5, { completedOnly: true, referenceTime: t1236 }),
+    '15m': Indicator.aggregate1mCandles(sim1m, 15, { completedOnly: true, referenceTime: t1236 }),
+  };
+  const sig5m15mDup = Indicator.evaluateSymbolCrossovers({
+    symbol: 'TESTUSDT',
+    candlesByTf: candlesAt1236,
+    pairs: '5m_15m',
+    referenceTime: t1236,
+    stepMs: 60 * 1000
+  });
+  assert.strictEqual(sig5m15mDup.length, 0, '5m_15m MUST NOT double-fire at 12:36:03');
+
+  // Case C: Evaluate 3m_6h right after 12:33:00 close (at 12:33:03)
+  const t1233 = startMs + 753 * minMs + 3000;
+  const c1mAt1233 = sim1m.slice(0, 753);
+  const candlesAt1233 = {
+    '1m': c1mAt1233,
+    '3m': Indicator.aggregate1mCandles(c1mAt1233, 3, { completedOnly: true, referenceTime: t1233 }),
+    '6h': sim6h
+  };
+  const sig3m6h = Indicator.evaluateSymbolCrossovers({
+    symbol: 'TESTUSDT',
+    candlesByTf: candlesAt1233,
+    pairs: '3m_6h',
+    referenceTime: t1233,
+    stepMs: 60 * 1000
+  });
+  assert.strictEqual(sig3m6h.length, 1, '3m_6h MUST fire right at 12:33:03 when the 12:30-12:33 3m bar closes');
+
+  // Case D: Evaluate 30m_12h at 15M cycle 12:31:25 (stepMs = 15m -> evaluates 12:30:00 vs 12:15:00)
+  const sim1m30 = [];
+  for (let m = 0; m < 751; m++) {
+    // Drop during [12:00, 12:30) so the 12:00-12:30 30m bar closes at 10 (pushing 30m SMA below 12h SMA of 100)
+    const close = (m >= 720 && m < 750) ? 1 : 105;
+    sim1m30.push({ time: startMs + m * minMs, open: close, high: close, low: close, close, volume: 10 });
+  }
+  const t1231 = startMs + 751 * minMs + 25000;
+  const candlesAt1231 = {
+    '1m': sim1m30,
+    '30m': Indicator.aggregate1mCandles(sim1m30, 30, { completedOnly: true, referenceTime: t1231 }),
+    '12h': sim12h
+  };
+  const sig30m12h = Indicator.evaluateSymbolCrossovers({
+    symbol: 'TESTUSDT',
+    candlesByTf: candlesAt1231,
+    pairs: '30m_12h',
+    referenceTime: t1231,
+    stepMs: 15 * 60 * 1000
+  });
+  assert.strictEqual(sig30m12h.length, 1, '30m_12h MUST fire at 12:31:25 15M cycle when the 12:00-12:30 30m bar closes');
+  console.log('  ✅ Live Close-Time Evaluation (5m_15m, 3m_6h, 30m_12h) Passed.\n');
+}
+
 console.log('🎉 ALL UNIT TESTS PASSED SUCCESSFULLY! Stage 1 Engine is 100% verified.');
