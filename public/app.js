@@ -520,10 +520,6 @@ window.toggleSignalDrilldown = function(id) {
     row.style.display = (row.style.display === 'none' || !row.style.display) ? 'table-row' : 'none';
   }
 };
-  } catch (err) {
-    console.error('Bots fetch error:', err);
-  }
-}
 
 async function closeBotManual(botId, symbol) {
   if (!confirm(`Are you sure you want to Market Close the bot for ${symbol} (ID: ${botId})?`)) {
