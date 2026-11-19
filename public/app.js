@@ -215,9 +215,17 @@ async function fetchBots() {
     const data = await res.json();
     const bots = data.bots || [];
     const history = data.history || [];
+    const signalStats = data.signalStats || { totals: {}, signals: [] };
 
+    // Update badges & tab counters
     const badge = document.getElementById('bots-badge-count');
     if (badge) badge.textContent = bots.length;
+
+    const tabRunning = document.getElementById('bots-tab-running-count');
+    if (tabRunning) tabRunning.textContent = bots.length;
+
+    const tabHistory = document.getElementById('bots-tab-history-count');
+    if (tabHistory) tabHistory.textContent = history.length;
 
     const modalBadge = document.getElementById('bots-modal-status-badge');
     if (modalBadge) {
@@ -230,111 +238,288 @@ async function fetchBots() {
       }
     }
 
-    const container = document.getElementById('bots-list-container');
-    if (!container) return;
+    // ──────────────────────────────────────────────────────────────────────────
+    // 1. RENDER SIGNAL & CROSSOVER STATISTICS TAB
+    // ──────────────────────────────────────────────────────────────────────────
+    const sigStatsContainer = document.getElementById('signal-stats-container');
+    if (sigStatsContainer) {
+      const totals = signalStats.totals || {};
+      const signals = signalStats.signals || [];
 
-    if (bots.length === 0 && history.length === 0) {
-      container.innerHTML = `
-        <div class="signal-empty">
-          <div style="font-size: 28px; margin-bottom: 8px;">🤖</div>
-          <b>No Active Bybit Short Grid Bots</b>
-          <p style="margin-top: 6px; font-size: 12px; color: var(--text-dim);">
-            When a verified 15M entry signal triggers and API keys are configured, a Short Grid Bot (2x Cross, 80 Grids, 1% TP) will launch automatically and display here.
-          </p>
+      let statsHtml = `
+        <!-- Top KPI Summary Cards -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 16px;">
+          <div class="stat-card" style="padding: 10px 14px; background: rgba(13, 17, 26, 0.9);">
+            <div class="stat-label">Total Launched</div>
+            <div class="stat-val monospace primary" style="font-size: 20px;">${totals.totalLaunched || 0}</div>
+            <div style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">${totals.activeCount || 0} Active • ${totals.completedCount || 0} Closed</div>
+          </div>
+          <div class="stat-card" style="padding: 10px 14px; background: rgba(13, 17, 26, 0.9);">
+            <div class="stat-label">TP Win Rate</div>
+            <div class="stat-val monospace green" style="font-size: 20px;">${totals.winRate || '--'}</div>
+            <div style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">100% Take Profit Hit</div>
+          </div>
+          <div class="stat-card" style="padding: 10px 14px; background: rgba(13, 17, 26, 0.9);">
+            <div class="stat-label">Realized Profit</div>
+            <div class="stat-val monospace green" style="font-size: 20px;">${totals.totalProfitText || '$0.00'}</div>
+            <div style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">Cumulative PnL (USDT)</div>
+          </div>
+          <div class="stat-card" style="padding: 10px 14px; background: rgba(13, 17, 26, 0.9);">
+            <div class="stat-label">Avg Hold Time</div>
+            <div class="stat-val monospace" style="font-size: 20px; color: #7dd3fc;">${totals.avgHoldTimeText || '--'}</div>
+            <div style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">Trigger to 1% TP</div>
+          </div>
+          <div class="stat-card" style="padding: 10px 14px; background: rgba(13, 17, 26, 0.9);">
+            <div class="stat-label">Fastest TP</div>
+            <div class="stat-val monospace" style="font-size: 20px; color: var(--amber);">⚡ ${totals.fastestTpText || '--'}</div>
+            <div style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">Quickest 1% Exit</div>
+          </div>
+        </div>
+
+        <!-- Signal & Crossover Statistics Table -->
+        <div style="overflow-x: auto; border: 1px solid var(--bg-card-border); border-radius: 8px;">
+          <table class="sig-stats-table monospace">
+            <thead>
+              <tr>
+                <th>Signal / Crossover Strategy</th>
+                <th style="text-align: center;">Total Launched</th>
+                <th style="text-align: center;">Active</th>
+                <th style="text-align: center;">Completed</th>
+                <th style="text-align: center;">Win Rate</th>
+                <th style="text-align: right;">Avg Hold Time</th>
+                <th style="text-align: right;">Fastest TP</th>
+                <th style="text-align: right;">Total Profit</th>
+              </tr>
+            </thead>
+            <tbody>
+      `;
+
+      if (signals.length === 0) {
+        statsHtml += `<tr><td colspan="8" style="text-align: center; padding: 24px; color: var(--text-dim);">No signal statistics recorded yet.</td></tr>`;
+      } else {
+        signals.forEach((sig, idx) => {
+          const hasBots = sig.totalLaunched > 0;
+          const badgeClass = sig.type === 'BB_CROSSOVER' ? 'safe-zone' : (sig.type === 'SGS_1' ? 'kc-touch' : '');
+          const rowBg = hasBots ? 'rgba(56, 189, 248, 0.03)' : 'transparent';
+          const drillId = `sig-drill-${sig.signalKey}`;
+
+          statsHtml += `
+            <tr class="clickable" onclick="toggleSignalDrilldown('${drillId}')" style="background: ${rowBg};">
+              <td>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="cursor: pointer; color: var(--primary); font-size: 11px;">▶</span>
+                  <b style="color: ${hasBots ? '#fff' : 'var(--text-dim)'};">${sig.displayName}</b>
+                  ${hasBots ? `<span class="badge-tag" style="background: rgba(16, 185, 129, 0.15); color: #86efac; font-size: 10px; padding: 1px 6px;">${sig.totalLaunched} Launched</span>` : ''}
+                </div>
+              </td>
+              <td style="text-align: center; font-weight: 700; color: ${hasBots ? 'var(--primary)' : 'var(--text-dim)'};">${sig.totalLaunched}</td>
+              <td style="text-align: center; color: ${sig.activeCount > 0 ? 'var(--green)' : 'var(--text-dim)'}; font-weight: 700;">${sig.activeCount}</td>
+              <td style="text-align: center; color: ${sig.completedCount > 0 ? '#fff' : 'var(--text-dim)'};">${sig.completedCount}</td>
+              <td style="text-align: center; color: ${sig.completedCount > 0 ? 'var(--green)' : 'var(--text-dim)'}; font-weight: 700;">${sig.winRate}</td>
+              <td style="text-align: right; color: ${hasBots ? '#7dd3fc' : 'var(--text-dim)'};">${sig.avgHoldTimeText}</td>
+              <td style="text-align: right; color: ${hasBots ? 'var(--amber)' : 'var(--text-dim)'};">${sig.fastestTpText !== '--' ? '⚡ ' + sig.fastestTpText : '--'}</td>
+              <td style="text-align: right; color: ${sig.completedCount > 0 ? 'var(--green)' : 'var(--text-dim)'}; font-weight: 700;">${sig.totalProfitText}</td>
+            </tr>
+            <!-- Drilldown Row (Hidden by default) -->
+            <tr id="${drillId}" class="sig-drilldown-row" style="display: none;">
+              <td colspan="8">
+                <div class="sig-drilldown-box">
+                  <div style="font-size: 11px; font-weight: 700; color: var(--primary); margin-bottom: 8px;">
+                    Bots Triggered by ${sig.displayName} (${sig.bots.length} Total):
+                  </div>
+                  ${sig.bots.length === 0 ? '<div style="color: var(--text-dim); font-size: 11px;">No bots have been triggered by this signal yet.</div>' : `
+                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                      ${sig.bots.map(b => `
+                        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); padding: 6px 12px; border-radius: 4px; font-size: 11px;">
+                          <div style="display: flex; align-items: center; gap: 10px;">
+                            <span class="badge-tag ${b.status === 'RUNNING' ? 'safe-zone' : ''}" style="font-size: 10px;">${b.status}</span>
+                            <b style="color: #fff;">${b.symbol}</b>
+                            <span style="color: var(--text-dim);">ID: <code>${b.botId}</code></span>
+                            <span style="color: var(--text-muted);">Entry: $${formatPrice(b.entryPrice)}</span>
+                          </div>
+                          <div style="display: flex; align-items: center; gap: 12px;">
+                            <span>${b.status === 'RUNNING' ? '⏱️ Runtime: <b style="color: var(--primary);">' + b.runningText + '</b>' : '⏱️ Hold Time to TP: <b style="color: #7dd3fc;">' + b.holdTimeText + '</b>'}</span>
+                            <span style="color: ${b.pnl >= 0 ? 'var(--green)' : 'var(--red)'}; font-weight: 700;">${b.pnl >= 0 ? '+' : ''}$${Number(b.pnl).toFixed(2)} USDT</span>
+                          </div>
+                        </div>
+                      `).join('')}
+                    </div>
+                  `}
+                </div>
+              </td>
+            </tr>
+          `;
+        });
+      }
+
+      statsHtml += `
+            </tbody>
+          </table>
         </div>
       `;
-      return;
+
+      sigStatsContainer.innerHTML = statsHtml;
     }
 
-    let html = '';
-
-    if (bots.length > 0) {
-      html += `<div style="font-size: 11px; font-weight: 700; color: var(--primary); text-transform: uppercase; margin-bottom: 8px;" class="monospace">Active Running Bots (${bots.length})</div>`;
-      html += bots.map(b => {
-        const pnl = Number(b.pnl || 0);
-        const pnlColor = pnl >= 1.00 ? 'var(--green)' : (pnl > 0 ? '#86efac' : (pnl < 0 ? 'var(--red)' : '#fff'));
-        const pnlSign = pnl > 0 ? '+' : '';
-
-        return `
-          <div class="signal-card ${pnl >= 1.00 ? 'first-touch' : ''}">
-            <div class="signal-header-row monospace">
-              <div>
-                <b style="font-size: 16px; color: #fff;">${b.symbol}</b>
-                <span class="badge-tag safe-zone" style="margin-left: 8px;">SHORT 2.0x</span>
-                <span class="badge-tag" style="background: rgba(56, 189, 248, 0.15); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.3);">
-                  40 GRIDS
-                </span>
-                <span class="badge-tag" style="background: rgba(16, 185, 129, 0.15); color: #86efac; border: 1px solid rgba(16, 185, 129, 0.3);">
-                  TP: +$1.00 (1%)
-                </span>
-              </div>
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 11px; color: var(--text-muted);">
-                  Bot ID: <code style="color: #7dd3fc;">${b.botId}</code>
-                </span>
-                <button class="bot-close-btn monospace" onclick="closeBotManual('${b.botId}', '${b.symbol}')">
-                  Market Close
-                </button>
-              </div>
-            </div>
-
-            <div class="signal-stats-grid monospace">
-              <div>
-                <span style="color: var(--text-dim);">Entry Price:</span>
-                <b>$${formatPrice(b.entryPrice)}</b>
-              </div>
-              <div>
-                <span style="color: var(--text-dim);">Lower Limit (-30%):</span>
-                <b style="color: var(--green);">$${formatPrice(b.minPrice)}</b>
-              </div>
-              <div>
-                <span style="color: var(--text-dim);">Upper Limit (+70%):</span>
-                <b style="color: var(--red);">$${formatPrice(b.maxPrice)}</b>
-              </div>
-              <div>
-                <span style="color: var(--text-dim);">Live PnL (Target: $1.00):</span>
-                <b style="color: ${pnlColor}; font-size: 13px;">${pnlSign}$${pnl.toFixed(4)} USDT</b>
-              </div>
-            </div>
-
-            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px;" class="monospace">
-              <span style="color: var(--text-muted);">
-                Started: ${b.createdAtIso ? b.createdAtIso.substring(11, 19) + ' UTC' : '--'} • Investment: 100 USDT • 60s Watcher
-              </span>
-              <a href="https://www.bybit.com/trade/usdt/${b.symbol}" target="_blank" class="btn-copy" style="text-decoration: none;">
-                View on Bybit ↗
-              </a>
-            </div>
+    // ──────────────────────────────────────────────────────────────────────────
+    // 2. RENDER ACTIVE RUNNING BOTS TAB
+    // ──────────────────────────────────────────────────────────────────────────
+    const runningContainer = document.getElementById('bots-list-container');
+    if (runningContainer) {
+      if (bots.length === 0) {
+        runningContainer.innerHTML = `
+          <div class="signal-empty">
+            <div style="font-size: 28px; margin-bottom: 8px;">🤖</div>
+            <b>No Active Running Grid Bots Right Now</b>
+            <p style="margin-top: 6px; font-size: 12px; color: var(--text-dim);">
+              When an OPTIMAL_12 Crossover or SGS-1 signal triggers on a Safe Zone token, a Short Grid Bot (2x Cross, 80 Grids, 1% TP) will launch automatically.
+            </p>
           </div>
         `;
-      }).join('');
-    }
+      } else {
+        let runningHtml = `<div style="font-size: 11px; font-weight: 700; color: var(--primary); text-transform: uppercase; margin-bottom: 8px;" class="monospace">Active Running Bots (${bots.length})</div>`;
+        runningHtml += bots.map(b => {
+          const pnl = Number(b.pnl || 0);
+          const pnlColor = pnl >= 1.00 ? 'var(--green)' : (pnl > 0 ? '#86efac' : (pnl < 0 ? 'var(--red)' : '#fff'));
+          const pnlSign = pnl > 0 ? '+' : '';
 
-    if (history.length > 0) {
-      html += `<div style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-top: 16px; margin-bottom: 8px;" class="monospace">Closed / Completed History (${history.length})</div>`;
-      html += history.map(h => {
-        const pnl = Number(h.pnl || 0);
-        const pnlSign = pnl > 0 ? '+' : '';
-        const pnlColor = pnl > 0 ? 'var(--green)' : (pnl < 0 ? 'var(--red)' : '#fff');
-        return `
-          <div class="signal-card" style="opacity: 0.8; padding: 10px 14px;">
-            <div class="signal-header-row monospace" style="font-size: 12px;">
-              <div>
-                <b>${h.symbol}</b>
-                <span class="badge-tag" style="background: rgba(255,255,255,0.05); margin-left: 6px;">${h.status || 'CLOSED'}</span>
-                <span style="color: var(--text-dim); margin-left: 8px;">Reason: ${h.reason || 'Completed'}</span>
+          const sigLabel = b.crossover?.pairId
+            ? `📈 BB CROSSOVER: ${b.crossover.pairId}`
+            : (b.signalType === 'SGS_1' ? '🛡️ SGS-1 SAFETY FILTER' : `⚡ ${b.signalType || 'FIRST_TOUCH'}`);
+
+          return `
+            <div class="signal-card ${pnl >= 1.00 ? 'first-touch' : ''}">
+              <div class="signal-header-row monospace">
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                  <b style="font-size: 16px; color: #fff;">${b.symbol}</b>
+                  <span class="badge-tag safe-zone">SHORT 2.0x</span>
+                  <span class="badge-tag" style="background: rgba(56, 189, 248, 0.15); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.3);">
+                    80 GRIDS
+                  </span>
+                  <span class="badge-tag" style="background: rgba(16, 185, 129, 0.15); color: #86efac; border: 1px solid rgba(16, 185, 129, 0.3);">
+                    TP: +$1.00 (1%)
+                  </span>
+                  <span class="badge-tag" style="background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); font-weight: 700;">
+                    ${sigLabel}
+                  </span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 11px; color: var(--text-muted);">
+                    Bot ID: <code style="color: #7dd3fc;">${b.botId}</code>
+                  </span>
+                  <button class="bot-close-btn monospace" onclick="closeBotManual('${b.botId}', '${b.symbol}')">
+                    Market Close
+                  </button>
+                </div>
               </div>
-              <div>
-                <span style="color: var(--text-dim);">Final PnL:</span>
-                <b style="color: ${pnlColor}; margin-left: 4px;">${pnlSign}$${pnl.toFixed(4)} USDT</b>
+
+              <div class="signal-stats-grid monospace">
+                <div>
+                  <span style="color: var(--text-dim);">Entry Price:</span>
+                  <b>$${formatPrice(b.entryPrice)}</b>
+                </div>
+                <div>
+                  <span style="color: var(--text-dim);">Lower Limit (-30%):</span>
+                  <b style="color: var(--green);">$${formatPrice(b.minPrice)}</b>
+                </div>
+                <div>
+                  <span style="color: var(--text-dim);">Upper Limit (+70%):</span>
+                  <b style="color: var(--red);">$${formatPrice(b.maxPrice)}</b>
+                </div>
+                <div>
+                  <span style="color: var(--text-dim);">Live PnL (Target: $1.00):</span>
+                  <b style="color: ${pnlColor}; font-size: 13px;">${pnlSign}$${pnl.toFixed(4)} USDT</b>
+                </div>
+              </div>
+
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px;" class="monospace">
+                <span style="color: var(--text-muted);">
+                  Started: ${b.createdAtIso ? b.createdAtIso.substring(11, 19) + ' UTC' : '--'} • Runtime: <b style="color: var(--primary);">${b.runningText || '--'}</b> • Investment: 100 USDT
+                </span>
+                <a href="https://www.bybit.com/trade/usdt/${b.symbol}" target="_blank" class="btn-copy" style="text-decoration: none;">
+                  View on Bybit ↗
+                </a>
               </div>
             </div>
-          </div>
-        `;
-      }).join('');
+          `;
+        }).join('');
+        runningContainer.innerHTML = runningHtml;
+      }
     }
 
-    container.innerHTML = html;
+    // ──────────────────────────────────────────────────────────────────────────
+    // 3. RENDER TAKE-PROFIT HISTORY TAB
+    // ──────────────────────────────────────────────────────────────────────────
+    const historyContainer = document.getElementById('history-list-container');
+    if (historyContainer) {
+      if (history.length === 0) {
+        historyContainer.innerHTML = `
+          <div class="signal-empty">
+            <div style="font-size: 28px; margin-bottom: 8px;">🏁</div>
+            <b>No Completed Bots in History Yet</b>
+          </div>
+        `;
+      } else {
+        let historyHtml = `<div style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px;" class="monospace">Completed Bots History (${history.length})</div>`;
+        historyHtml += history.map(h => {
+          const pnl = Number(h.pnl || 0);
+          const pnlSign = pnl > 0 ? '+' : '';
+          const pnlColor = pnl > 0 ? 'var(--green)' : (pnl < 0 ? 'var(--red)' : '#fff');
+
+          const sigLabel = h.crossover?.pairId
+            ? `📈 BB CROSSOVER: ${h.crossover.pairId}`
+            : (h.signalType === 'SGS_1' ? '🛡️ SGS-1' : (h.signalType || 'BB_CROSSOVER'));
+
+          return `
+            <div class="signal-card" style="opacity: 0.9; padding: 12px 16px; margin-bottom: 8px;">
+              <div class="signal-header-row monospace" style="font-size: 12px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <b style="font-size: 14px; color: #fff;">${h.symbol}</b>
+                  <span class="badge-tag" style="background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); font-weight: 700;">
+                    ${sigLabel}
+                  </span>
+                  <span class="badge-tag safe-zone">${h.status || 'COMPLETED'}</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span style="color: var(--text-dim);">Hold Time to TP:</span>
+                  <b style="color: #7dd3fc; font-size: 13px;">⏱️ ${h.durationText || '--'}</b>
+                  <span style="color: var(--text-dim);">PnL:</span>
+                  <b style="color: ${pnlColor}; font-size: 13px;">${pnlSign}$${pnl.toFixed(4)} USDT</b>
+                </div>
+              </div>
+              <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim); margin-top: 6px;" class="monospace">
+                <span>Entry: $${formatPrice(h.entryPrice)} • Target: 1% Take Profit</span>
+                <span>Closed: ${h.archivedAt ? h.archivedAt.replace('T', ' ').substring(0, 19) + ' UTC' : '--'}</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+        historyContainer.innerHTML = historyHtml;
+      }
+    }
+  } catch (err) {
+    console.error('Bots fetch error:', err);
+  }
+}
+
+// Global Tab Switcher for Bots & Signal Statistics Modal
+window.switchBotsModalTab = function(tab) {
+  const tabs = ['signals', 'running', 'history'];
+  tabs.forEach(t => {
+    const btn = document.getElementById(`tab-btn-${t}`);
+    const view = document.getElementById(`tab-view-${t}`);
+    if (btn) btn.classList.toggle('active', t === tab);
+    if (view) view.style.display = (t === tab) ? 'block' : 'none';
+  });
+};
+
+// Global Toggle for Signal Drilldown Row
+window.toggleSignalDrilldown = function(id) {
+  const row = document.getElementById(id);
+  if (row) {
+    row.style.display = (row.style.display === 'none' || !row.style.display) ? 'table-row' : 'none';
+  }
+};
   } catch (err) {
     console.error('Bots fetch error:', err);
   }

@@ -56,7 +56,7 @@
       </div>
       <div class="live-watcher-item ml-auto" style="display: flex; gap: 8px;">
         <button id="btn-view-bots" class="btn-signals" style="border-color: var(--primary); color: #7dd3fc; background: rgba(56, 189, 248, 0.15);">
-          <span>🤖</span> Active Bots (<span id="bots-badge-count">0</span>)
+          <span>🤖</span> Bots &amp; Signal Stats (<span id="bots-badge-count">0</span>)
         </button>
         <button id="btn-view-signals" class="btn-signals">
           <span>🚨</span> Live Signals (<span id="signals-badge-count">0</span>)
@@ -301,24 +301,54 @@
     </div>
   </div>
 
-  <!-- Active Bots Modal -->
+  <!-- Active Bots & Signal Performance Modal -->
   <div id="bots-modal" class="modal-backdrop" aria-hidden="true">
-    <div class="modal-card signals-modal-card">
+    <div class="modal-card signals-modal-card" style="max-width: 960px;">
       <div class="modal-header">
         <div class="modal-title-row">
-          <span class="symbol-name monospace">🤖 Active Running Bybit Short Grid Bots</span>
+          <span class="symbol-name monospace">🤖 Bot Performance &amp; Signal Statistics</span>
           <span id="bots-modal-status-badge" class="badge-tag safe-zone">60s LIVE WATCHER ACTIVE</span>
         </div>
         <button id="bots-modal-close" class="modal-close">&times;</button>
       </div>
 
       <div class="signals-info-banner monospace" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-        <span>Bot Strategy: 2.0x Leverage • 40 Geometric Grids • Range [-30%, +70%] • TP: +1.00 USDT (1%)</span>
+        <span>Bot Strategy: 2.0x Leverage • 80 Grids • Range [-30%, +70%] • TP: +1.00 USDT (1%)</span>
         <button id="btn-force-check-bots" class="btn-copy monospace" style="padding: 4px 10px;">🔄 Check Bots Now</button>
       </div>
 
-      <div id="bots-list-container" class="signals-list">
-        <!-- Rendered dynamically -->
+      <!-- Navigation Tabs inside Modal -->
+      <div class="modal-tab-bar monospace" style="margin-top: 6px; margin-bottom: 12px;">
+        <button id="tab-btn-signals" class="modal-tab-btn active" onclick="switchBotsModalTab('signals')">
+          📊 Signal &amp; Crossover Statistics
+        </button>
+        <button id="tab-btn-running" class="modal-tab-btn" onclick="switchBotsModalTab('running')">
+          🟢 Running Bots (<span id="bots-tab-running-count">0</span>)
+        </button>
+        <button id="tab-btn-history" class="modal-tab-btn" onclick="switchBotsModalTab('history')">
+          🏁 Take-Profit History (<span id="bots-tab-history-count">0</span>)
+        </button>
+      </div>
+
+      <!-- Tab View 1: Signal Statistics -->
+      <div id="tab-view-signals" class="tab-panel-view">
+        <div id="signal-stats-container">
+          <!-- Rendered dynamically via app.js -->
+        </div>
+      </div>
+
+      <!-- Tab View 2: Running Bots -->
+      <div id="tab-view-running" class="tab-panel-view" style="display: none;">
+        <div id="bots-list-container" class="signals-list">
+          <!-- Rendered dynamically via app.js -->
+        </div>
+      </div>
+
+      <!-- Tab View 3: History Bots -->
+      <div id="tab-view-history" class="tab-panel-view" style="display: none;">
+        <div id="history-list-container" class="signals-list">
+          <!-- Rendered dynamically via app.js -->
+        </div>
       </div>
     </div>
   </div>

@@ -68,11 +68,214 @@ app.get('/api/signals', async (req, res) => {
   });
 });
 
-// Active Grid Bots & History Endpoint
+// Format duration into readable string
+function formatDuration(ms) {
+  if (!ms || isNaN(ms) || ms <= 0) return '--';
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  const h = Math.floor(m / 60);
+  const d = Math.floor(h / 24);
+  if (d > 0) return `${d}d ${h % 24}h`;
+  if (h > 0) return `${h}h ${m % 60}m`;
+  if (m > 0) return `${m}m ${s % 60}s`;
+  return `${s}s`;
+}
+
+// Compute Signal & Crossover Performance Statistics
+function computeSignalStats(activeBots = [], history = []) {
+  const OPTIMAL_12_KEYS = [
+    '1m_12h', '5m_15m', '3m_6h', '15m_6h', '30m_1h', '1h_4h',
+    '30m_12h', '15m_1h', '5m_1h', '15m_4h', '1h_12h', '1h_6h'
+  ];
+
+  const statsMap = new Map();
+
+  // Initialize known optimal pairs
+  OPTIMAL_12_KEYS.forEach(k => {
+    statsMap.set(`BB_${k}`, {
+      signalKey: `BB_${k}`,
+      displayName: `BB CROSSOVER: ${k}`,
+      type: 'BB_CROSSOVER',
+      crossoverPair: k,
+      totalLaunched: 0,
+      activeCount: 0,
+      completedCount: 0,
+      durations: [],
+      profits: [],
+      bots: []
+    });
+  });
+
+  // Initialize SGS-1 & Keltner
+  statsMap.set('SGS_1', {
+    signalKey: 'SGS_1',
+    displayName: '🛡️ SGS-1 SAFETY FILTER',
+    type: 'SGS_1',
+    crossoverPair: null,
+    totalLaunched: 0,
+    activeCount: 0,
+    completedCount: 0,
+    durations: [],
+    profits: [],
+    bots: []
+  });
+
+  statsMap.set('FIRST_TOUCH', {
+    signalKey: 'FIRST_TOUCH',
+    displayName: '🔥 15M KELTNER TOUCH (Fallback)',
+    type: 'FIRST_TOUCH',
+    crossoverPair: null,
+    totalLaunched: 0,
+    activeCount: 0,
+    completedCount: 0,
+    durations: [],
+    profits: [],
+    bots: []
+  });
+
+  function getBotKey(b) {
+    if (b.crossover?.pairId) return `BB_${b.crossover.pairId}`;
+    if (b.signalType === 'SGS_1') return 'SGS_1';
+    if (b.signalType === 'BB_CROSSOVER') {
+      return 'BB_1m_12h';
+    }
+    return b.signalType || 'FIRST_TOUCH';
+  }
+
+  const now = Date.now();
+
+  // Process active running bots
+  for (const b of activeBots) {
+    const key = getBotKey(b);
+    let stat = statsMap.get(key);
+    if (!stat) {
+      stat = { signalKey: key, displayName: key, type: b.signalType, totalLaunched: 0, activeCount: 0, completedCount: 0, durations: [], profits: [], bots: [] };
+      statsMap.set(key, stat);
+    }
+    stat.totalLaunched++;
+    stat.activeCount++;
+    const startMs = b.createdAt || new Date(b.createdAtIso).getTime() || now;
+    const runMs = Math.max(0, now - startMs);
+    b.crossover = b.crossover || (key.startsWith('BB_') ? { pairId: key.replace('BB_', '') } : null);
+    b.runningMs = runMs;
+    b.runningText = formatDuration(runMs);
+
+    stat.bots.push({
+      symbol: b.symbol,
+      botId: b.botId,
+      status: 'RUNNING',
+      startedIso: b.createdAtIso || new Date(startMs).toISOString(),
+      entryPrice: b.entryPrice,
+      pnl: Number(b.pnl || 0),
+      runningText: b.runningText
+    });
+  }
+
+  // Process completed history bots
+  for (const h of history) {
+    if (!h.symbol) continue;
+    const key = getBotKey(h);
+    let stat = statsMap.get(key);
+    if (!stat) {
+      stat = { signalKey: key, displayName: key, type: h.signalType, totalLaunched: 0, activeCount: 0, completedCount: 0, durations: [], profits: [], bots: [] };
+      statsMap.set(key, stat);
+    }
+    stat.totalLaunched++;
+    stat.completedCount++;
+
+    const startMs = h.createdAt || new Date(h.createdAtIso).getTime() || 0;
+    const endMs = h.endedAt || new Date(h.archivedAt).getTime() || startMs;
+    const durMs = Math.max(0, endMs - startMs);
+    const pnl = Number(h.pnl || 0);
+
+    h.crossover = h.crossover || (key.startsWith('BB_') ? { pairId: key.replace('BB_', '') } : null);
+    h.durationMs = durMs;
+    h.durationText = formatDuration(durMs);
+
+    stat.durations.push(durMs);
+    stat.profits.push(pnl);
+
+    stat.bots.push({
+      symbol: h.symbol,
+      botId: h.botId,
+      status: h.status || 'COMPLETED',
+      startedIso: h.createdAtIso || (startMs ? new Date(startMs).toISOString() : '--'),
+      endedIso: h.archivedAt || (endMs ? new Date(endMs).toISOString() : '--'),
+      holdTimeMs: durMs,
+      holdTimeText: h.durationText,
+      entryPrice: h.entryPrice,
+      pnl: pnl
+    });
+  }
+
+  // Generate summaries
+  const signalsList = Array.from(statsMap.values()).map(s => {
+    const durCount = s.durations.length;
+    let avgHoldMs = null;
+    let fastestMs = null;
+    let longestMs = null;
+    if (durCount > 0) {
+      const sumDur = s.durations.reduce((acc, d) => acc + d, 0);
+      avgHoldMs = Math.round(sumDur / durCount);
+      fastestMs = Math.min(...s.durations);
+      longestMs = Math.max(...s.durations);
+    }
+    const totalPnl = s.profits.reduce((acc, p) => acc + p, 0);
+
+    return {
+      displayName: s.displayName,
+      signalKey: s.signalKey,
+      type: s.type,
+      crossoverPair: s.crossoverPair,
+      totalLaunched: s.totalLaunched,
+      activeCount: s.activeCount,
+      completedCount: s.completedCount,
+      winRate: s.completedCount > 0 ? '100.0%' : '--',
+      avgHoldTimeText: formatDuration(avgHoldMs),
+      avgHoldTimeMs: avgHoldMs,
+      fastestTpText: formatDuration(fastestMs),
+      fastestTpMs: fastestMs,
+      longestTpText: formatDuration(longestMs),
+      longestTpMs: longestMs,
+      totalProfitText: totalPnl > 0 ? `+$${totalPnl.toFixed(2)}` : `$${totalPnl.toFixed(2)}`,
+      totalProfitNum: Number(totalPnl.toFixed(2)),
+      bots: s.bots
+    };
+  });
+
+  // Sort signals with launched bots first, then remaining
+  signalsList.sort((a, b) => b.totalLaunched - a.totalLaunched);
+
+  // Overall Totals
+  const totalLaunchedAll = signalsList.reduce((acc, s) => acc + s.totalLaunched, 0);
+  const totalActiveAll = signalsList.reduce((acc, s) => acc + s.activeCount, 0);
+  const totalCompletedAll = signalsList.reduce((acc, s) => acc + s.completedCount, 0);
+  const allDurations = Array.from(statsMap.values()).flatMap(s => s.durations);
+  const totalProfitAll = signalsList.reduce((acc, s) => acc + s.totalProfitNum, 0);
+
+  const avgHoldAll = allDurations.length ? Math.round(allDurations.reduce((a, b) => a + b, 0) / allDurations.length) : null;
+  const fastestAll = allDurations.length ? Math.min(...allDurations) : null;
+
+  const totals = {
+    totalLaunched: totalLaunchedAll,
+    activeCount: totalActiveAll,
+    completedCount: totalCompletedAll,
+    winRate: totalCompletedAll > 0 ? '100.0%' : '--',
+    avgHoldTimeText: formatDuration(avgHoldAll),
+    fastestTpText: formatDuration(fastestAll),
+    totalProfitText: totalProfitAll > 0 ? `+$${totalProfitAll.toFixed(2)}` : `$${totalProfitAll.toFixed(2)}`
+  };
+
+  return { totals, signals: signalsList };
+}
+
+// Active Grid Bots & History Endpoint (Includes Signal Statistics)
 app.get('/api/bots', async (req, res) => {
   const activeBots = await watcher.db.getActiveBots();
-  const history = await watcher.db.getBotHistory(20);
+  const history = await watcher.db.getBotHistory(500);
   const status = await watcher.botManager.getStatus();
+  const signalStats = computeSignalStats(activeBots, history);
+
   res.json({
     configured: status.hasApiCredentials,
     hasApiCredentials: status.hasApiCredentials,
@@ -81,9 +284,18 @@ app.get('/api/bots', async (req, res) => {
     bots: activeBots,
     activeBots,
     history,
+    signalStats,
     config: status.config,
     apiKeyMasked: status.apiKeyMasked
   });
+});
+
+// Dedicated Signal Statistics Endpoint
+app.get('/api/signal-stats', async (req, res) => {
+  const activeBots = await watcher.db.getActiveBots();
+  const history = await watcher.db.getBotHistory(500);
+  const stats = computeSignalStats(activeBots, history);
+  res.json(stats);
 });
 
 // Close a running bot
