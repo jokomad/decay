@@ -31,6 +31,8 @@ for (let i = 0; i < 1000; i++) {
   });
 }
 
+// For the SGS 150-day historical window test, override MAX_SAFE_ZONE_DAYS to 200
+process.env.MAX_SAFE_ZONE_DAYS = '200';
 const scanner = new BybitScanner();
 const pair = {
   symbol: 'TESTUSDT',
@@ -43,10 +45,17 @@ const pair = {
 const analysis = scanner._evaluateDecay(pair, candles);
 
 assert(analysis, 'analysis should not be null');
-assert.strictEqual(analysis.isSafeZone, true, 'synthetic setup should be a safe zone');
+assert.strictEqual(analysis.isSafeZone, true, 'synthetic setup should be a safe zone when MAX_SAFE_ZONE_DAYS=200');
 assert(analysis.sgsDaily, 'sgsDaily should be present');
 assert.strictEqual(analysis.sgsDaily.completedBars, 1000, 'SGS should use all completed daily bars');
 assert.strictEqual(analysis.sgsDaily.daysSincePeakBars, 150, 'SGS days should come from the full history peak');
+
+// Verify default Climax Expiration Guard (8 days): a 150-day-old peak must be rejected!
+delete process.env.MAX_SAFE_ZONE_DAYS;
+const defaultScanner = new BybitScanner();
+const defaultAnalysis = defaultScanner._evaluateDecay(pair, candles);
+assert.strictEqual(defaultAnalysis.isSafeZone, false, 'stale 150-day peak must be rejected by default 8-day Climax Expiration Guard');
+assert.strictEqual(defaultAnalysis.isClimaxFresh, false, 'isClimaxFresh should be false for 150-day peak');
 console.log('PASS: scanner SGS integration', {
   isSafeZone: analysis.isSafeZone,
   sgsDaily: analysis.sgsDaily,

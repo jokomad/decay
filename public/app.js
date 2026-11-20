@@ -613,7 +613,11 @@ function renderCards(pairs) {
               ? `<span class="badge-tag safe-zone">🛡️ Safe Zone</span>` 
               : (item.downsidePct < 1.50 
                   ? `<span class="badge-tag outside-safe monospace" title="Downside to Base is only ${item.downsidePct.toFixed(1)}% (<1.50%). Insufficient room to complete 1.25% TP before floor!">⚠️ At Base (${item.downsidePct.toFixed(1)}%)</span>`
-                  : `<span class="badge-tag outside-safe">⚠️ Outside Safe</span>`)}
+                  : (item.isBullishDailyTrend
+                      ? `<span class="badge-tag outside-safe monospace" style="color: #f87171; border-color: #ef4444;" title="1D Bull Trend Filter Active: SMA20 slope is +${item.sma20Slope5dPct}% and price is holding/above 20 SMA. Bull continuation risk!">⚠️ 1D Bull Trend (+${item.sma20Slope5dPct}%)</span>`
+                      : (item.daysSincePeak > (item.maxDaysSincePeak || 8)
+                          ? `<span class="badge-tag outside-safe monospace" style="color: #fb923c; border-color: #f97316;" title="Climax Expiration Guard: ${item.daysSincePeak}d since peak exceeds maximum fresh decay window of ${item.maxDaysSincePeak || 8}d. Re-accumulation risk!">⚠️ Stale Peak (${item.daysSincePeak}d)</span>`
+                          : `<span class="badge-tag outside-safe">⚠️ Outside Safe</span>`)))}
             ${item.isFirstTouch
               ? `<span class="badge-tag kc-touch monospace" style="background: rgba(234, 179, 8, 0.2); border-color: #eab308; color: #fde047;">🔥 15M FIRST TOUCH (${item.kcSpreadPct.toFixed(1)}% Spread${item.isHighVelocitySpread ? ' ⚡ Fast' : ''})</span>`
               : (item.isKeltnerTouch 
@@ -1016,6 +1020,12 @@ function openModal(item) {
     safeBadge.className = 'badge-tag safe-zone';
   } else if (item.downsidePct < 1.50) {
     safeBadge.textContent = `⚠️ AT BASELINE FLOOR (${item.downsidePct.toFixed(1)}% < 1.50% TP ROOM)`;
+    safeBadge.className = 'badge-tag outside-safe monospace';
+  } else if (item.isBullishDailyTrend) {
+    safeBadge.textContent = `⚠️ 1D BULL TREND BLOCKED (SMA20 SLOPE: +${item.sma20Slope5dPct}%)`;
+    safeBadge.className = 'badge-tag outside-safe monospace';
+  } else if (item.daysSincePeak > (item.maxDaysSincePeak || 8)) {
+    safeBadge.textContent = `⚠️ STALE CLIMAX PEAK (${item.daysSincePeak}d > ${item.maxDaysSincePeak || 8}d LIMIT)`;
     safeBadge.className = 'badge-tag outside-safe monospace';
   } else {
     safeBadge.textContent = '⚠️ OUTSIDE SAFE ZONE';

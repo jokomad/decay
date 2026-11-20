@@ -16,6 +16,7 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const LiveWatcher = require('./lib/liveWatcher');
+const CrossoverIndicator = require('./lib/crossoverIndicator');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -83,15 +84,13 @@ function formatDuration(ms) {
 
 // Compute Signal & Crossover Performance Statistics
 function computeSignalStats(activeBots = [], history = []) {
-  const OPTIMAL_12_KEYS = [
-    '1m_12h', '5m_15m', '3m_6h', '15m_6h', '30m_1h', '1h_4h',
-    '30m_12h', '15m_1h', '5m_1h', '15m_4h', '1h_12h', '1h_6h'
-  ];
+  const activePairs = CrossoverIndicator.resolvePairs(process.env.BB_CROSSOVER_PAIRS || 'OPTIMAL_12');
+  const activePairIds = activePairs.map(p => p.id);
 
   const statsMap = new Map();
 
-  // Initialize known optimal pairs
-  OPTIMAL_12_KEYS.forEach(k => {
+  // Initialize active optimal pairs
+  activePairIds.forEach(k => {
     statsMap.set(`BB_${k}`, {
       signalKey: `BB_${k}`,
       displayName: `BB CROSSOVER: ${k}`,

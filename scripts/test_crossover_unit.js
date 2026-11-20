@@ -26,14 +26,14 @@ console.log('🧪 Starting Crossover Indicator Unit Tests...\n');
 // ─────────────────────────────────────────────────────────────────────────────
 console.log('Test 1: Portfolio Registry & Config Parsing');
 
-// Default is OPTIMAL_12
+// Default is OPTIMAL portfolio (9 vetted pairs after removing 3 micro-dips)
 const defaultPairs = Indicator.resolvePairs();
-assert.strictEqual(defaultPairs.length, 12, 'Default portfolio should contain 12 pairs');
+assert.strictEqual(defaultPairs.length, 9, 'Default portfolio should contain 9 pairs');
 assert.strictEqual(defaultPairs[0].id, '5m_15m', 'First pair should be 5m_15m');
 
-// Explicit string 'OPTIMAL_12'
+// Explicit string 'OPTIMAL_12' (alias to vetted optimal portfolio)
 const opt12 = Indicator.resolvePairs('OPTIMAL_12');
-assert.strictEqual(opt12.length, 12, 'OPTIMAL_12 should contain 12 pairs');
+assert.strictEqual(opt12.length, 9, 'OPTIMAL_12 should contain 9 pairs');
 
 // CORE_6 subset
 const core6 = Indicator.resolvePairs('CORE_6');
