@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bybit Multi-Timeframe SMA Angle Cascade Scanner</title>
+  <style>
+    :root {
+      --bg-dark: #0a0d14;
+      --bg-card: #111622;
+      --bg-card-hover: #161e2e;
+      --border: #1f293d;
+      --border-light: #2d3b55;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --cyan: #38bdf8;
+      --emerald: #10b981;
+      --amber: #f59e0b;
+      --rose: #f43f5e;
+      --purple: #a855f7;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg-dark); color: var(--text); padding: 20px; line-height: 1.5; }
+    .monospace { font-family: "JetBrains Mono", "SF Mono", Consolas, monospace; }
+
+    .header-box { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 16px; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+    .header-title h1 { font-size: 22px; font-weight: 800; background: linear-gradient(90deg, #38bdf8, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .header-title p { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+    .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+    button { background: var(--border); border: 1px solid var(--border-light); color: var(--text); padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
+    button:hover { background: #25334d; color: #fff; }
+    button.primary { background: #0284c7; border-color: #38bdf8; color: #fff; }
+    button.primary:hover { background: #0369a1; }
+    button.active { background: rgba(56, 189, 248, 0.2); border-color: var(--cyan); color: var(--cyan); }
+
+    .progress-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; display: none; }
+    .progress-bar-bg { width: 100%; height: 8px; background: #1e293b; border-radius: 4px; overflow: hidden; margin-top: 8px; }
+    .progress-bar-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--cyan), var(--emerald)); transition: width 0.2s; }
+
+    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+    .stat-card .label { font-size: 11px; text-transform: uppercase; color: var(--text-dim); font-weight: 700; }
+    .stat-card .val { font-size: 20px; font-weight: 800; margin-top: 4px; }
+
+    .filter-bar { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 20px; }
+    .search-input { background: var(--bg-dark); border: 1px solid var(--border); color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 13px; width: 220px; }
+
+    .pairs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; }
+    .pair-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; transition: transform 0.2s, border-color 0.2s; position: relative; }
+    .pair-card:hover { transform: translateY(-2px); border-color: var(--cyan); background: var(--bg-card-hover); }
+
+    .card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+    .symbol-name { font-size: 17px; font-weight: 800; color: #fff; }
+    .signal-pill { font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 4px; text-transform: uppercase; }
+    .pill-cresting { background: rgba(56, 189, 248, 0.2); border: 1px solid var(--cyan); color: var(--cyan); }
+    .pill-parabolic { background: rgba(245, 158, 11, 0.2); border: 1px solid var(--amber); color: var(--amber); }
+    .pill-waterfall { background: rgba(244, 63, 94, 0.2); border: 1px solid var(--rose); color: var(--rose); }
+    .pill-reversal { background: rgba(16, 185, 129, 0.2); border: 1px solid var(--emerald); color: var(--emerald); }
+
+    .angle-matrix { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 14px 0; background: var(--bg-dark); padding: 8px; border-radius: 8px; border: 1px solid var(--border); }
+    .angle-cell { text-align: center; }
+    .angle-cell .tf { font-size: 10px; color: var(--text-dim); font-weight: 700; margin-bottom: 2px; }
+    .angle-val { font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 3px; padding: 4px 2px; border-radius: 4px; }
+
+    .angle-steep-up { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; }
+    .angle-mod-up { background: rgba(16, 185, 129, 0.1); color: #a7f3d0; }
+    .angle-flat { background: rgba(148, 163, 184, 0.1); color: #cbd5e1; }
+    .angle-mod-down { background: rgba(244, 63, 94, 0.15); color: #fca5a5; }
+    .angle-steep-down { background: rgba(244, 63, 94, 0.25); color: #fda4af; }
+
+    .sparkline-box { height: 42px; margin-top: 10px; width: 100%; border-top: 1px dashed var(--border); padding-top: 6px; display: flex; align-items: center; justify-content: space-between; }
+    .divergence-val { font-size: 12px; font-weight: 700; }
+  </style>
+</head>
+<body>
+
+  <div class="header-box">
+    <div class="header-title">
+      <h1>🌊 Multi-Timeframe SMA Angle Cascade Screener</h1>
+      <p>Scans Bybit Linear USDT pairs (excluding stocks & delistings) for SMA Angle exhaustion: 1D ➔ 12H ➔ 6H ➔ 4H ➔ 1H</p>
+    </div>
+    <div class="btn-group">
+      <button id="btn-scan-top" class="primary">⚡ Scan Top 50 Gainers (Fast)</button>
+      <button id="btn-scan-vol">🔥 Scan Top 100 Volume</button>
+      <button id="btn-scan-all">🌐 Scan All Pairs (~570)</button>
+      <button id="btn-cancel" style="display: none; background: #7f1d1d; border-color: var(--rose);">🛑 Stop</button>
+    </div>
+  </div>
+
+  <div id="progress-container" class="progress-box">
+    <div style="display: flex; justify-content: space-between; font-size: 12px;" class="monospace">
+      <span id="progress-text">Scanning Bybit pairs...</span>
+      <span id="progress-pct">0%</span>
+    </div>
+    <div class="progress-bar-bg">
+      <div id="progress-fill" class="progress-bar-fill"></div>
+    </div>
+  </div>
+
+  <div class="summary-grid">
+    <div class="stat-card">
+      <div class="label">Pairs Scanned</div>
+      <div id="stat-scanned" class="val monospace">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">🌊 Cresting Rollovers (Apex)</div>
+      <div id="stat-cresting" class="val monospace" style="color: var(--cyan);">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">⚠️ Parabolic Bull (Avoid Short)</div>
+      <div id="stat-parabolic" class="val monospace" style="color: var(--amber);">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">📉 Full Waterfalls (Down)</div>
+      <div id="stat-waterfall" class="val monospace" style="color: var(--rose);">0</div>
+    </div>
+  </div>
+
+  <div class="filter-bar">
+    <input type="text" id="search-input" class="search-input monospace" placeholder="Search symbol (e.g. CTR, SOL)...">
+    <div class="btn-group">
+      <button class="filter-btn active" data-filter="ALL">All Qualified (<span id="cnt-all">0</span>)</button>
+      <button class="filter-btn" data-filter="CRESTING">🌊 Cresting Waves (<span id="cnt-cresting">0</span>)</button>
+      <button class="filter-btn" data-filter="PARABOLIC">⚠️ Parabolic (<span id="cnt-parabolic">0</span>)</button>
+      <button class="filter-btn" data-filter="WATERFALL">📉 Waterfall (<span id="cnt-waterfall">0</span>)</button>
+    </div>
+    <div style="margin-left: auto;" class="monospace" style="font-size: 12px;">
+      Sort by: 
+      <select id="sort-select" style="background: var(--bg-dark); border: 1px solid var(--border); color: #fff; padding: 6px 10px; border-radius: 6px; font-size: 12px;">
+        <option value="cascade">🌊 Angle Rollover Score (1D - 1H)</option>
+        <option value="1d">1D Angle (Steepest)</option>
+        <option value="1h">1H Angle (Weakest)</option>
+        <option value="gain">24h Price Gain</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="pairs-container" class="pairs-grid">
+    <div style="grid-column: 1 / -1; text-align: center; padding: 60px 20px; color: var(--text-dim);">
+      Click <b>"Scan Top 50 Gainers (Fast)"</b> or <b>"Scan Top 100 Volume"</b> above to begin discovering multi-timeframe SMA angle rollovers.
+    </div>
+  </div>
+
+  <script>
+    let scanResults = [];
+    let isScanning = false;
+    let cancelRequested = false;
+    let activeFilter = 'ALL';
+
+    function calcSma(closes, period = 20) {
+      if (closes.length < period) return null;
+      const slice = closes.slice(-period);
+      return slice.reduce((a, b) => a + b, 0) / period;
+    }
+
+    function calcAngle(smaNow, smaPrev, bars) {
+      if (!smaNow || !smaPrev) return 0;
+      const pctChange = ((smaNow - smaPrev) / smaPrev) * 100;
+      // Normalizing slope per bar: mapping to degrees (-90 to +90) via Math.atan
+      const slopePerBar = pctChange / bars;
+      const radians = Math.atan(slopePerBar * 1.0);
+      const degrees = (radians * 180) / Math.PI;
+      return Number(degrees.toFixed(1));
+    }
+
+    function aggregateCandles(candles1h, factor) {
+      const result = [];
+      for (let i = 0; i < candles1h.length; i += factor) {
+        const chunk = candles1h.slice(i, i + factor);
+        if (chunk.length < factor) continue;
+        result.push({
+          time: chunk[0].time,
+          open: chunk[0].open,
+          high: Math.max(...chunk.map(c => c.high)),
+          low: Math.min(...chunk.map(c => c.low)),
+          close: chunk[chunk.length - 1].close,
+          volume: chunk.reduce((a, c) => a + c.volume, 0)
+        });
+      }
+      return result;
+    }
+
+    function getAngleBadgeClass(angle) {
+      if (angle >= 30) return 'angle-steep-up';
+      if (angle >= 10) return 'angle-mod-up';
+      if (angle >= -10) return 'angle-flat';
+      if (angle >= -30) return 'angle-mod-down';
+      return 'angle-steep-down';
+    }
+
+    function getArrow(angle) {
+      if (angle >= 30) return '↗';
+      if (angle >= 10) return '↗';
+      if (angle >= -10) return '➔';
+      if (angle >= -30) return '↘';
+      return '↘';
+    }
+
+    async function fetchWithRetry(url, retries = 3) {
+      for (let i = 0; i < retries; i++) {
+        try {
+          const res = await fetch(url);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return await res.json();
+        } catch (e) {
+          if (i === retries - 1) throw e;
+          await new Promise(r => setTimeout(r, 400));
+        }
+      }
+    }
+
+    async function runScan(mode = 'top50') {
+      if (isScanning) return;
+      isScanning = true;
+      cancelRequested = false;
+      scanResults = [];
+
+      document.getElementById('progress-container').style.display = 'block';
+      document.getElementById('btn-cancel').style.display = 'inline-block';
+      document.getElementById('progress-text').textContent = 'Fetching Bybit Linear instruments & tickers...';
+
+      try {
+        const [instData, tickData] = await Promise.all([
+          fetchWithRetry('https://api.bybit.com/v5/market/instruments-info?category=linear&limit=1000'),
+          fetchWithRetry('https://api.bybit.com/v5/market/tickers?category=linear')
+        ]);
+
+        const tickersMap = new Map();
+        (tickData?.result?.list || []).forEach(t => tickersMap.set(t.symbol, t));
+
+        // Enforce Safeguard 1: Exclude Stocks & Delistings
+        let targets = (instData?.result?.list || []).filter(inst => {
+          if (inst.symbolType === 'stock') return false; // Safeguard 1: Stocks excluded
+          if (inst.deliveryTime && inst.deliveryTime !== '0') return false; // Safeguard 1: Delistings excluded
+          if (inst.status !== 'Trading') return false;
+          if (!inst.symbol.endsWith('USDT') || inst.symbol.includes('-')) return false;
+          return true;
+        });
+
+        // Attach ticker metadata
+        targets = targets.map(inst => {
+          const t = tickersMap.get(inst.symbol);
+          return {
+            symbol: inst.symbol,
+            lastPrice: parseFloat(t?.lastPrice || '0'),
+            turnover24h: parseFloat(t?.turnover24h || '0'),
+            price24hPcnt: parseFloat(t?.price24hPcnt || '0') * 100
+          };
+        }).filter(t => t.lastPrice > 0 && t.turnover24h > 100000); // Filter out zero-volume abandoned pairs
+
+        if (mode === 'top50') {
+          // Sort by highest 24h gainers (pumps)
+          targets.sort((a, b) => b.price24hPcnt - a.price24hPcnt);
+          targets = targets.slice(0, 50);
+        } else if (mode === 'top100vol') {
+          targets.sort((a, b) => b.turnover24h - a.turnover24h);
+          targets = targets.slice(0, 100);
+        }
+
+        const total = targets.length;
+        let completed = 0;
+
+        // Concurrency queue
+        const concurrency = 4;
+        let idx = 0;
+
+        async function worker() {
+          while (idx < targets.length && !cancelRequested) {
+            const item = targets[idx++];
+            try {
+              // 2 API calls per coin: 1D (limit 60) + 1H (limit 300)
+              const [dRes, hRes] = await Promise.all([
+                fetchWithRetry(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${item.symbol}&interval=D&limit=60`),
+                fetchWithRetry(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${item.symbol}&interval=60&limit=300`)
+              ]);
+
+              const parseCandles = (list) => (list || []).map(c => ({
+                time: parseInt(c[0]),
+                open: parseFloat(c[1]),
+                high: parseFloat(c[2]),
+                low: parseFloat(c[3]),
+                close: parseFloat(c[4]),
+                volume: parseFloat(c[5])
+              })).sort((a,b) => a.time - b.time);
+
+              const c1D = parseCandles(dRes?.result?.list);
+              const c1H = parseCandles(hRes?.result?.list);
+
+              if (c1D.length >= 25 && c1H.length >= 240) {
+                const c4H = aggregateCandles(c1H, 4);
+                const c6H = aggregateCandles(c1H, 6);
+                const c12H = aggregateCandles(c1H, 12);
+
+                function getAngle(candles, lookback = 3) {
+                  const closes = candles.map(c => c.close);
+                  const smaNow = calcSma(closes, 20);
+                  const smaPrev = calcSma(closes.slice(0, -lookback), 20);
+                  return calcAngle(smaNow, smaPrev, lookback);
+                }
+
+                const a1D = getAngle(c1D, 3);
+                const a12H = getAngle(c12H, 3);
+                const a6H = getAngle(c6H, 3);
+                const a4H = getAngle(c4H, 3);
+                const a1H = getAngle(c1H, 3);
+
+                // Rollover Divergence Score: 1D Angle minus 1H Angle
+                const cascadeScore = Number((a1D - a1H).toFixed(1));
+
+                // Classification
+                let classification = 'RANGEBOUND';
+                if (a1D >= 25 && a1H <= 10 && a1D > a12H && a12H >= a6H && a6H >= a4H) {
+                  classification = 'CRESTING'; // Textbook cresting wave top rollover
+                } else if (a1D >= 35 && a12H >= 25 && a6H >= 20 && a4H >= 15 && a1H >= 15) {
+                  classification = 'PARABOLIC'; // Runaway bull trend (do not short)
+                } else if (a1D <= -10 && a12H <= -10 && a6H <= -10 && a4H <= -10 && a1H <= -10) {
+                  classification = 'WATERFALL'; // Full multi-timeframe collapse
+                } else if (a1D >= 20 && a1H < 0) {
+                  classification = 'CRESTING'; // 1D positive, hourly negative
+                }
+
+                scanResults.push({
+                  symbol: item.symbol,
+                  lastPrice: item.lastPrice,
+                  price24hPcnt: item.price24hPcnt,
+                  turnover24h: item.turnover24h,
+                  angles: { '1D': a1D, '12H': a12H, '6H': a6H, '4H': a4H, '1H': a1H },
+                  cascadeScore,
+                  classification
+                });
+              }
+            } catch (err) {
+              console.warn(`Scan error for ${item.symbol}:`, err.message);
+            }
+
+            completed++;
+            const pct = Math.round((completed / total) * 100);
+            document.getElementById('progress-fill').style.width = pct + '%';
+            document.getElementById('progress-pct').textContent = pct + '%';
+            document.getElementById('progress-text').textContent = `Scanning: ${completed}/${total} pairs processed (${item.symbol})...`;
+            
+            // Progressive render every 10 pairs
+            if (completed % 10 === 0 || completed === total) {
+              renderResults();
+            }
+          }
+        }
+
+        const workers = Array(concurrency).fill(null).map(() => worker());
+        await Promise.all(workers);
+
+      } catch (e) {
+        alert('Scan error: ' + e.message);
+      } finally {
+        isScanning = false;
+        document.getElementById('btn-cancel').style.display = 'none';
+        document.getElementById('progress-text').textContent = cancelRequested ? 'Scan stopped by user.' : 'Scan complete!';
+        renderResults();
+      }
+    }
+
+    function renderResults() {
+      document.getElementById('stat-scanned').textContent = scanResults.length;
+      document.getElementById('stat-cresting').textContent = scanResults.filter(r => r.classification === 'CRESTING').length;
+      document.getElementById('stat-parabolic').textContent = scanResults.filter(r => r.classification === 'PARABOLIC').length;
+      document.getElementById('stat-waterfall').textContent = scanResults.filter(r => r.classification === 'WATERFALL').length;
+
+      document.getElementById('cnt-all').textContent = scanResults.length;
+      document.getElementById('cnt-cresting').textContent = scanResults.filter(r => r.classification === 'CRESTING').length;
+      document.getElementById('cnt-parabolic').textContent = scanResults.filter(r => r.classification === 'PARABOLIC').length;
+      document.getElementById('cnt-waterfall').textContent = scanResults.filter(r => r.classification === 'WATERFALL').length;
+
+      const search = document.getElementById('search-input').value.trim().toUpperCase();
+      const sort = document.getElementById('sort-select').value;
+
+      let list = [...scanResults];
+
+      if (search) {
+        list = list.filter(r => r.symbol.includes(search));
+      }
+
+      if (activeFilter !== 'ALL') {
+        list = list.filter(r => r.classification === activeFilter);
+      }
+
+      if (sort === 'cascade') {
+        list.sort((a, b) => b.cascadeScore - a.cascadeScore);
+      } else if (sort === '1d') {
+        list.sort((a, b) => b.angles['1D'] - a.angles['1D']);
+      } else if (sort === '1h') {
+        list.sort((a, b) => a.angles['1H'] - b.angles['1H']);
+      } else if (sort === 'gain') {
+        list.sort((a, b) => b.price24hPcnt - a.price24hPcnt);
+      }
+
+      const container = document.getElementById('pairs-container');
+      if (list.length === 0) {
+        container.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--text-dim);">No pairs matched the current filter.</div>`;
+        return;
+      }
+
+      container.innerHTML = list.map(item => {
+        const a = item.angles;
+        let pillClass = 'pill-cresting';
+        let pillText = '🌊 CRESTING WAVE';
+        if (item.classification === 'PARABOLIC') { pillClass = 'pill-parabolic'; pillText = '⚠️ PARABOLIC BULL'; }
+        else if (item.classification === 'WATERFALL') { pillClass = 'pill-waterfall'; pillText = '📉 WATERFALL DUMP'; }
+        else if (item.classification === 'RANGEBOUND') { pillClass = 'pill-cresting'; pillText = '⚖️ CONSOLIDATING'; }
+
+        // Mini SVG Sparkline connecting 1D -> 12H -> 6H -> 4H -> 1H
+        const pts = [a['1D'], a['12H'], a['6H'], a['4H'], a['1H']];
+        const minVal = -45, maxVal = 75;
+        const normY = (v) => 38 - Math.max(0, Math.min(38, ((v - minVal) / (maxVal - minVal)) * 38));
+        const polylinePoints = pts.map((v, i) => `${20 + i * 45},${normY(v).toFixed(1)}`).join(' ');
+
+        return `
+          <div class="pair-card">
+            <div class="card-top">
+              <div>
+                <span class="symbol-name monospace">${item.symbol}</span>
+                <span style="font-size: 11px; margin-left: 6px; color: ${item.price24hPcnt >= 0 ? 'var(--emerald)' : 'var(--rose)'};" class="monospace">
+                  ${item.price24hPcnt >= 0 ? '+' : ''}${item.price24hPcnt.toFixed(1)}% 24h
+                </span>
+              </div>
+              <span class="signal-pill ${pillClass}">${pillText}</span>
+            </div>
+
+            <div style="font-size: 12px; color: var(--text-muted); display: flex; justify-content: space-between;" class="monospace">
+              <span>Price: <b>$${item.lastPrice}</b></span>
+              <span>24h Vol: <b>$${(item.turnover24h / 1e6).toFixed(1)}M</b></span>
+            </div>
+
+            <div class="angle-matrix monospace">
+              <div class="angle-cell">
+                <div class="tf">1D SMA</div>
+                <div class="angle-val ${getAngleBadgeClass(a['1D'])}">${getArrow(a['1D'])} ${a['1D']}°</div>
+              </div>
+              <div class="angle-cell">
+                <div class="tf">12H SMA</div>
+                <div class="angle-val ${getAngleBadgeClass(a['12H'])}">${getArrow(a['12H'])} ${a['12H']}°</div>
+              </div>
+              <div class="angle-cell">
+                <div class="tf">6H SMA</div>
+                <div class="angle-val ${getAngleBadgeClass(a['6H'])}">${getArrow(a['6H'])} ${a['6H']}°</div>
+              </div>
+              <div class="angle-cell">
+                <div class="tf">4H SMA</div>
+                <div class="angle-val ${getAngleBadgeClass(a['4H'])}">${getArrow(a['4H'])} ${a['4H']}°</div>
+              </div>
+              <div class="angle-cell">
+                <div class="tf">1H SMA</div>
+                <div class="angle-val ${getAngleBadgeClass(a['1H'])}">${getArrow(a['1H'])} ${a['1H']}°</div>
+              </div>
+            </div>
+
+            <div class="sparkline-box monospace">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <svg width="220" height="40" style="overflow: visible;">
+                  <polyline fill="none" stroke="${item.cascadeScore >= 20 ? 'var(--cyan)' : '#475569'}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="${polylinePoints}" />
+                  ${pts.map((v, i) => `<circle cx="${20 + i * 45}" cy="${normY(v).toFixed(1)}" r="3" fill="${v >= 10 ? 'var(--emerald)' : (v <= -10 ? 'var(--rose)' : 'var(--amber)')}" />`).join('')}
+                </svg>
+              </div>
+              <div style="text-align: right;">
+                <span style="font-size: 10px; color: var(--text-dim);">Divergence (1D - 1H)</span>
+                <div class="divergence-val" style="color: ${item.cascadeScore >= 25 ? 'var(--cyan)' : 'var(--text-muted)'};">
+                  ${item.cascadeScore >= 0 ? '+' : ''}${item.cascadeScore}°
+                </div>
+              </div>
+            </div>
+
+            <div style="margin-top: 10px; display: flex; justify-content: flex-end;">
+              <a href="https://www.bybit.com/trade/usdt/${item.symbol}" target="_blank" style="color: var(--cyan); text-decoration: none; font-size: 11px; font-weight: 700;">
+                Open Chart on Bybit ↗
+              </a>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Event Handlers
+    document.getElementById('btn-scan-top').addEventListener('click', () => runScan('top50'));
+    document.getElementById('btn-scan-vol').addEventListener('click', () => runScan('top100vol'));
+    document.getElementById('btn-scan-all').addEventListener('click', () => runScan('all'));
+    document.getElementById('btn-cancel').addEventListener('click', () => { cancelRequested = true; });
+
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeFilter = btn.dataset.filter;
+        renderResults();
+      });
+    });
+
+    document.getElementById('search-input').addEventListener('input', renderResults);
+    document.getElementById('sort-select').addEventListener('change', renderResults);
+  </script>
+</body>
+</html>
