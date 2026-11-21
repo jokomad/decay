@@ -119,9 +119,20 @@
           <option value="200">Min Gain: +200%</option>
         </select>
 
-        <button id="btn-toggle-safe-zone" class="btn-toggle active">
-          🛡️ Safe Zone Only
-        </button>
+        <div class="mode-btn-group">
+          <button id="btn-mode-all" class="btn-mode active" data-mode="ALL" title="All Safe Zone Pairs (Mode 1 Flash + Mode 2 Double-Top)">
+            🛡️ Safe Zone (<span id="cnt-safe-all">0</span>)
+          </button>
+          <button id="btn-mode-1" class="btn-mode" data-mode="MODE_1" title="Mode 1: Fast Flash Decay (Days 2-8 post-Peak 1, Low Vol)">
+            ⚡ Mode 1 (<span id="cnt-safe-m1">0</span>)
+          </button>
+          <button id="btn-mode-2" class="btn-mode btn-mode-2" data-mode="MODE_2" title="Mode 2: Double-Top / Second Run Decay (Rollover post-Peak 2)">
+            🎯 Mode 2 (<span id="cnt-safe-m2">0</span>)
+          </button>
+          <button id="btn-mode-any" class="btn-mode" data-mode="OFF" title="Show all active decays, including outside safe zone">
+            🌐 All Coins
+          </button>
+        </div>
       </div>
 
       <div class="filter-right">
@@ -203,6 +214,32 @@
           <div>
             <div class="mini-item-label">📏 Channel Spread (TP Room)</div>
             <div id="modal-kc-spread-val" class="mini-item-val">--</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mode 2 Double-Top Pattern Box (Shown when item is Mode 2) -->
+      <div id="modal-mode2-box" class="kc-trigger-box" style="display: none; border-color: rgba(59, 130, 246, 0.4); background: rgba(59, 130, 246, 0.06); margin-bottom: 16px;">
+        <div class="kc-status-row">
+          <span class="monospace" style="font-size: 11px; color: #93c5fd; font-weight: 700;">🎯 MODE 2: DOUBLE-TOP / SECOND RUN EXHAUSTION ANATOMY</span>
+          <span id="modal-mode2-badge" class="badge-tag mode2 monospace">DOUBLE-TOP CONFIRMED</span>
+        </div>
+        <div class="card-anatomy-row monospace" style="margin-bottom: 0; grid-template-columns: repeat(4, 1fr);">
+          <div>
+            <div class="mini-item-label">🔥 Peak 1 (High)</div>
+            <div id="modal-m2-p1" class="mini-item-val" style="color: var(--amber);">--</div>
+          </div>
+          <div>
+            <div class="mini-item-label">📉 Base Trough</div>
+            <div id="modal-m2-trough" class="mini-item-val" style="color: var(--primary);">--</div>
+          </div>
+          <div>
+            <div class="mini-item-label">🎯 Peak 2 (Second Run)</div>
+            <div id="modal-m2-p2" class="mini-item-val" style="color: #60a5fa;">--</div>
+          </div>
+          <div>
+            <div class="mini-item-label">⚡ Rollover from P2</div>
+            <div id="modal-m2-drop" class="mini-item-val" style="color: var(--red);">--</div>
           </div>
         </div>
       </div>

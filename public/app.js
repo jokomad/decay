@@ -11,6 +11,7 @@
 let currentPairs = [];
 let sortMode = 'keltner'; // Default: closest to Upper Keltner Band
 let safeZoneOnly = true;  // Default: Safe Zone coins only
+let decayModeFilter = 'ALL'; // 'ALL', 'MODE_1', 'MODE_2', or 'OFF'
 let currentModalItem = null;
 let modalActiveTimeframe = '15m'; // Default modal view: 15m
 let pollTimer = null;
@@ -560,10 +561,23 @@ async function fetchPairs() {
     search
   });
 
+  if (safeZoneOnly && decayModeFilter && decayModeFilter !== 'ALL' && decayModeFilter !== 'OFF') {
+    params.set('decayMode', decayModeFilter);
+  }
+
   try {
     const res = await fetch(`/api/pairs?${params.toString()}`);
     const data = await res.json();
     currentPairs = data.pairs || [];
+
+    // Update Mode Counts on header buttons
+    const cntAll = document.getElementById('cnt-safe-all');
+    if (cntAll) cntAll.textContent = data.safeZoneCount ?? 0;
+    const cntM1 = document.getElementById('cnt-safe-m1');
+    if (cntM1) cntM1.textContent = data.mode1Count ?? 0;
+    const cntM2 = document.getElementById('cnt-safe-m2');
+    if (cntM2) cntM2.textContent = data.mode2Count ?? 0;
+
     renderCards(currentPairs);
   } catch (err) {
     console.error('Pairs fetch error:', err);
@@ -586,9 +600,17 @@ function renderCards(pairs) {
   const container = document.getElementById('pairs-container');
 
   if (pairs.length === 0) {
-    container.innerHTML = safeZoneOnly
-      ? '<div class="empty-box">No pairs currently inside the <b>Zero-Liquidation Safe Zone</b> (10%-45% drop, Day 2+, vol &lt;25%, downside &ge;1.50%). Turn off "Safe Zone Only" to view all active decays.</div>'
-      : '<div class="empty-box">No pairs match the current filter criteria.</div>';
+    let emptyMsg = 'No pairs match the current filter criteria.';
+    if (safeZoneOnly) {
+      if (decayModeFilter === 'MODE_1') {
+        emptyMsg = 'No pairs currently inside <b>Mode 1 Safe Zone</b> (Fast Flash Decay, Days 2-8 post-Peak 1, Low Vol).';
+      } else if (decayModeFilter === 'MODE_2') {
+        emptyMsg = 'No pairs currently inside <b>Mode 2 Safe Zone</b> (Double-Top / Second Run Decay, Days 1-6 post-Peak 2).';
+      } else {
+        emptyMsg = 'No pairs currently inside the <b>Zero-Liquidation Safe Zone</b> (Mode 1 Flash or Mode 2 Double-Top). Switch to "All Coins" to view outside candidates.';
+      }
+    }
+    container.innerHTML = `<div class="empty-box">${emptyMsg}</div>`;
     return;
   }
 
@@ -608,16 +630,20 @@ function renderCards(pairs) {
         <div class="card-header">
           <div class="symbol-badge-row">
             <span class="symbol-name monospace">${item.symbol}</span>
-            <span class="badge-tag drop monospace">-${item.dropFromPeakPct.toFixed(1)}% Peak</span>
-            ${item.isSafeZone 
-              ? `<span class="badge-tag safe-zone">🛡️ Safe Zone</span>` 
-              : (item.downsidePct < 1.50 
-                  ? `<span class="badge-tag outside-safe monospace" title="Downside to Base is only ${item.downsidePct.toFixed(1)}% (<1.50%). Insufficient room to complete 1.25% TP before floor!">⚠️ At Base (${item.downsidePct.toFixed(1)}%)</span>`
-                  : (item.isBullishDailyTrend
-                      ? `<span class="badge-tag outside-safe monospace" style="color: #f87171; border-color: #ef4444;" title="1D Bull Trend Filter Active: SMA20 slope is +${item.sma20Slope5dPct}% and price is holding/above 20 SMA. Bull continuation risk!">⚠️ 1D Bull Trend (+${item.sma20Slope5dPct}%)</span>`
-                      : (item.daysSincePeak > (item.maxDaysSincePeak || 8)
-                          ? `<span class="badge-tag outside-safe monospace" style="color: #fb923c; border-color: #f97316;" title="Climax Expiration Guard: ${item.daysSincePeak}d since peak exceeds maximum fresh decay window of ${item.maxDaysSincePeak || 8}d. Re-accumulation risk!">⚠️ Stale Peak (${item.daysSincePeak}d)</span>`
-                          : `<span class="badge-tag outside-safe">⚠️ Outside Safe</span>`)))}
+            <span class="badge-tag drop monospace">-${item.isMode2SafeZone && item.mode2 ? item.mode2.dropFromP2 : item.dropFromPeakPct.toFixed(1)}% ${item.isMode2SafeZone ? 'P2' : 'Peak'}</span>
+            ${item.isMode2SafeZone 
+              ? `<span class="badge-tag mode2 monospace" title="Mode 2 Double-Top Decay: Dropped -${item.mode2?.dropFromP2}% from Peak 2 (${item.mode2?.daysSinceP2}d ago). Second run exhaustion!">🎯 Mode 2: Double-Top (-${item.mode2?.dropFromP2}% P2)</span>` 
+              : (item.isMode1SafeZone
+                  ? `<span class="badge-tag safe-zone monospace" title="Mode 1 Flash Climax Decay: Dropped -${item.dropFromPeakPct.toFixed(1)}% from Peak 1 (${item.daysSincePeak}d ago, vol <25%)">⚡ Mode 1: Flash Decay (-${item.dropFromPeakPct.toFixed(1)}%)</span>`
+                  : (item.isSafeZone 
+                      ? `<span class="badge-tag safe-zone">🛡️ Safe Zone</span>` 
+                      : (item.downsidePct < 1.50 
+                          ? `<span class="badge-tag outside-safe monospace" title="Downside to Base is only ${item.downsidePct.toFixed(1)}% (<1.50%). Insufficient room to complete 1.25% TP before floor!">⚠️ At Base (${item.downsidePct.toFixed(1)}%)</span>`
+                          : (item.isBullishDailyTrend
+                              ? `<span class="badge-tag outside-safe monospace" style="color: #f87171; border-color: #ef4444;" title="1D Bull Trend Filter Active: SMA20 slope is +${item.sma20Slope5dPct}% and price is holding/above 20 SMA. Bull continuation risk!">⚠️ 1D Bull Trend (+${item.sma20Slope5dPct}%)</span>`
+                              : (item.daysSincePeak > (item.maxDaysSincePeak || 8)
+                                  ? `<span class="badge-tag outside-safe monospace" style="color: #fb923c; border-color: #f97316;" title="Climax Expiration Guard: ${item.daysSincePeak}d since peak exceeds maximum fresh decay window of ${item.maxDaysSincePeak || 8}d. Re-accumulation risk!">⚠️ Stale Peak (${item.daysSincePeak}d)</span>`
+                                  : `<span class="badge-tag outside-safe">⚠️ Outside Safe</span>`)))))}
             ${item.isFirstTouch
               ? `<span class="badge-tag kc-touch monospace" style="background: rgba(234, 179, 8, 0.2); border-color: #eab308; color: #fde047;">🔥 15M FIRST TOUCH (${item.kcSpreadPct.toFixed(1)}% Spread${item.isHighVelocitySpread ? ' ⚡ Fast' : ''})</span>`
               : (item.isKeltnerTouch 
@@ -627,7 +653,7 @@ function renderCards(pairs) {
                           ? `<span class="badge-tag kc-near monospace">🎯 15M KC: ${item.kcDistPct > 0 ? '+' : ''}${item.kcDistPct.toFixed(1)}% (Spread: ${item.kcSpreadPct.toFixed(1)}%)</span>`
                           : `<span class="badge-tag outside-safe monospace" title="Band is too narrow (<1.25%) for mean-reversion TP">⚠️ Tight KC: ${item.kcSpreadPct.toFixed(2)}%</span>`)
                       : ''))}
-            <span class="badge-tag days ${isRecent ? 'hot' : ''}">${item.daysSincePeak === 0 ? 'Peak Today' : `${item.daysSincePeak}d ago`}</span>
+            <span class="badge-tag days ${isRecent ? 'hot' : ''}">${item.isMode2SafeZone && item.mode2 ? (item.mode2.daysSinceP2 === 0 ? 'P2 Today' : `${item.mode2.daysSinceP2}d post-P2`) : (item.daysSincePeak === 0 ? 'Peak Today' : `${item.daysSincePeak}d ago`)}</span>
             <span class="badge-tag days monospace">${item.ageDays}d old</span>
           </div>
           <div class="downside-box">
@@ -650,8 +676,8 @@ function renderCards(pairs) {
             </div>
           </div>
           <div>
-            <div class="stat-micro-label">Climax Peak</div>
-            <div class="stat-micro-val" style="color: var(--amber);">$${formatPrice(item.peakPrice)} (+${item.peakGainPct.toFixed(0)}%)</div>
+            <div class="stat-micro-label">${item.isMode2SafeZone ? 'Peak 2 (Second Run)' : 'Climax Peak'}</div>
+            <div class="stat-micro-val" style="color: ${item.isMode2SafeZone ? '#60a5fa' : 'var(--amber)'};">$${formatPrice(item.isMode2SafeZone && item.mode2 ? item.mode2.p2High : item.peakPrice)} ${item.isMode2SafeZone && item.mode2 ? `(+${item.mode2.run2Gain}% run)` : `(+${item.peakGainPct.toFixed(0)}%)`}</div>
           </div>
           <div>
             <div class="stat-micro-label">Origin Base</div>
@@ -665,20 +691,44 @@ function renderCards(pairs) {
           <canvas id="canvas-1d-${item.symbol}" class="inline-1d-canvas" width="860" height="180"></canvas>
         </div>
 
-        <!-- 1D Climax Anatomy -->
+        <!-- 1D Climax / Double-Top Anatomy -->
         <div class="card-anatomy-row monospace">
-          <div>
-            <div class="mini-item-label">🚀 1. Pump Ignition</div>
-            <div class="mini-item-val" style="color: var(--green);">$${formatPrice(item.pumpStartPrice || item.basePrice)}</div>
-          </div>
-          <div>
-            <div class="mini-item-label">🔥 2. Climax Peak</div>
-            <div class="mini-item-val" style="color: var(--amber);">$${formatPrice(item.peakPrice)}</div>
-          </div>
-          <div>
-            <div class="mini-item-label">🏛️ 3. Baseline Floor</div>
-            <div class="mini-item-val" style="color: var(--primary);">$${formatPrice(item.basePrice)}</div>
-          </div>
+          ${item.isMode2SafeZone && item.mode2 ? `
+            <div>
+              <div class="mini-item-label">🔥 1. Peak 1 High</div>
+              <div class="mini-item-val" style="color: var(--amber);">$${formatPrice(item.mode2.p1High)}</div>
+            </div>
+            <div>
+              <div class="mini-item-label">📉 2. Base Trough</div>
+              <div class="mini-item-val" style="color: var(--primary);">$${formatPrice(item.mode2.troughLow)} (-${item.mode2.dropP1ToTrough}%)</div>
+            </div>
+            <div>
+              <div class="mini-item-label">🎯 3. Peak 2 Run</div>
+              <div class="mini-item-val" style="color: #60a5fa;">$${formatPrice(item.mode2.p2High)} (+${item.mode2.run2Gain}%)</div>
+            </div>
+            <div>
+              <div class="mini-item-label">⚡ 4. Drop from P2</div>
+              <div class="mini-item-val" style="color: var(--red);">-${item.mode2.dropFromP2}% (${item.mode2.daysSinceP2}d ago)</div>
+            </div>
+          ` : `
+            <div>
+              <div class="mini-item-label">🚀 1. Pump Ignition</div>
+              <div class="mini-item-val" style="color: var(--green);">$${formatPrice(item.pumpStartPrice || item.basePrice)}</div>
+            </div>
+            <div>
+              <div class="mini-item-label">🔥 2. Climax Peak</div>
+              <div class="mini-item-val" style="color: var(--amber);">$${formatPrice(item.peakPrice)}</div>
+            </div>
+            <div>
+              <div class="mini-item-label">🏛️ 3. Baseline Floor</div>
+              <div class="mini-item-val" style="color: var(--primary);">$${formatPrice(item.basePrice)}</div>
+            </div>
+            <div>
+              <div class="mini-item-label">⏱️ 4. Room to Base</div>
+              <div class="mini-item-val" style="color: ${isClose ? 'var(--green)' : 'var(--red)'};">-${item.downsidePct.toFixed(1)}%</div>
+            </div>
+          `}
+        </div>
           <div>
             <div class="mini-item-label">⏱️ 4. Room to Base</div>
             <div class="mini-item-val" style="color: ${isClose ? 'var(--green)' : 'var(--red)'};">-${item.downsidePct.toFixed(1)}%</div>
@@ -1015,7 +1065,13 @@ function openModal(item) {
   document.getElementById('modal-symbol').textContent = item.symbol;
   
   const safeBadge = document.getElementById('modal-safe-badge');
-  if (item.isSafeZone) {
+  if (item.isMode2SafeZone) {
+    safeBadge.textContent = '🎯 MODE 2: DOUBLE-TOP DECAY';
+    safeBadge.className = 'badge-tag mode2';
+  } else if (item.isMode1SafeZone) {
+    safeBadge.textContent = '⚡ MODE 1: FLASH CLIMAX DECAY';
+    safeBadge.className = 'badge-tag safe-zone';
+  } else if (item.isSafeZone) {
     safeBadge.textContent = '🛡️ ZERO-LIQ SAFE ZONE ACTIVE';
     safeBadge.className = 'badge-tag safe-zone';
   } else if (item.downsidePct < 1.50) {
@@ -1032,8 +1088,31 @@ function openModal(item) {
     safeBadge.className = 'badge-tag outside-safe';
   }
 
-  document.getElementById('modal-drop-badge').textContent = `-${item.dropFromPeakPct.toFixed(1)}% FROM PEAK`;
-  document.getElementById('modal-days-badge').textContent = `${item.daysSincePeak}d SINCE PEAK`;
+  if (item.isMode2SafeZone && item.mode2) {
+    document.getElementById('modal-drop-badge').textContent = `-${item.mode2.dropFromP2}% FROM PEAK 2`;
+    document.getElementById('modal-days-badge').textContent = `${item.mode2.daysSinceP2}d POST-PEAK 2`;
+  } else {
+    document.getElementById('modal-drop-badge').textContent = `-${item.dropFromPeakPct.toFixed(1)}% FROM PEAK`;
+    document.getElementById('modal-days-badge').textContent = `${item.daysSincePeak}d SINCE PEAK`;
+  }
+
+  // Populate Mode 2 Box if present
+  const m2Box = document.getElementById('modal-mode2-box');
+  if (m2Box) {
+    if (item.isMode2SafeZone && item.mode2) {
+      m2Box.style.display = 'block';
+      const m2p1 = document.getElementById('modal-m2-p1');
+      if (m2p1) m2p1.textContent = `$${formatPrice(item.mode2.p1High)} (${item.mode2.p1Date})`;
+      const m2tr = document.getElementById('modal-m2-trough');
+      if (m2tr) m2tr.textContent = `$${formatPrice(item.mode2.troughLow)} (-${item.mode2.dropP1ToTrough}%)`;
+      const m2p2 = document.getElementById('modal-m2-p2');
+      if (m2p2) m2p2.textContent = `$${formatPrice(item.mode2.p2High)} (+${item.mode2.run2Gain}%)`;
+      const m2drop = document.getElementById('modal-m2-drop');
+      if (m2drop) m2drop.textContent = `-${item.mode2.dropFromP2}% (${item.mode2.daysSinceP2}d ago)`;
+    } else {
+      m2Box.style.display = 'none';
+    }
+  }
 
   // Timeframe Tabs inside modal
   const tab15m = document.getElementById('modal-tab-15m');
@@ -1234,13 +1313,32 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Safe Zone Toggle
-  const safeBtn = document.getElementById('btn-toggle-safe-zone');
-  safeBtn.addEventListener('click', () => {
-    safeZoneOnly = !safeZoneOnly;
-    safeBtn.classList.toggle('active', safeZoneOnly);
-    fetchPairs();
+  // Decay Mode & Safe Zone Selector Buttons
+  document.querySelectorAll('.btn-mode').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.btn-mode').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const mode = btn.dataset.mode;
+      if (mode === 'OFF') {
+        safeZoneOnly = false;
+        decayModeFilter = 'OFF';
+      } else {
+        safeZoneOnly = true;
+        decayModeFilter = mode; // 'ALL', 'MODE_1', or 'MODE_2'
+      }
+      fetchPairs();
+    });
   });
+
+  // Legacy Safe Zone Toggle fallback
+  const safeBtn = document.getElementById('btn-toggle-safe-zone');
+  if (safeBtn) {
+    safeBtn.addEventListener('click', () => {
+      safeZoneOnly = !safeZoneOnly;
+      safeBtn.classList.toggle('active', safeZoneOnly);
+      fetchPairs();
+    });
+  }
 
   // Search Input
   document.getElementById('search-input').addEventListener('input', () => {

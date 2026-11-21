@@ -49,10 +49,18 @@ app.get('/api/time', (req, res) => {
 
 // Decayed Pairs Endpoint (Default sort: closest to 15M Upper Keltner Band)
 app.get('/api/pairs', async (req, res) => {
-  const { search, minGain, safeZoneOnly, sort } = req.query;
-  const pairs = scanner.getResults({ search, minGain, safeZoneOnly, sort });
+  const { search, minGain, safeZoneOnly, sort, decayMode } = req.query;
+  const pairs = scanner.getResults({ search, minGain, safeZoneOnly, sort, decayMode });
+  const allResults = scanner.getResults();
+  const safeZoneCount = allResults.filter(p => p.isSafeZone).length;
+  const mode1Count = allResults.filter(p => p.isMode1SafeZone).length;
+  const mode2Count = allResults.filter(p => p.isMode2SafeZone).length;
+
   res.json({
     total: pairs.length,
+    safeZoneCount,
+    mode1Count,
+    mode2Count,
     state: scanner.getState(),
     watcher: await watcher.getStatus(),
     pairs
