@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bybit Linear Climax Decay Screener | Zero-Liquidation Safe Zones</title>
   <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
   <div class="container">
     <!-- Header -->
@@ -55,10 +57,12 @@
         <span id="lw-restart-status" class="live-val amber">04:05 UTC</span>
       </div>
       <div class="live-watcher-item ml-auto" style="display: flex; gap: 8px;">
-        <a href="/sma_angle_scanner.html" target="_blank" class="btn-signals" style="border-color: #818cf8; color: #c7d2fe; background: rgba(129, 140, 248, 0.15); text-decoration: none; display: flex; align-items: center; gap: 6px;">
+        <a href="/sma_angle_scanner.html" target="_blank" class="btn-signals"
+          style="border-color: #818cf8; color: #c7d2fe; background: rgba(129, 140, 248, 0.15); text-decoration: none; display: flex; align-items: center; gap: 6px;">
           <span>🌊</span> SMA Angle Radar ↗
         </a>
-        <button id="btn-view-bots" class="btn-signals" style="border-color: var(--primary); color: #7dd3fc; background: rgba(56, 189, 248, 0.15);">
+        <button id="btn-view-bots" class="btn-signals"
+          style="border-color: var(--primary); color: #7dd3fc; background: rgba(56, 189, 248, 0.15);">
           <span>🤖</span> Bots &amp; Signal Stats (<span id="bots-badge-count">0</span>)
         </button>
         <button id="btn-view-signals" class="btn-signals">
@@ -113,8 +117,9 @@
     <!-- Controls & Filters Bar -->
     <section class="controls-bar">
       <div class="filter-left">
-        <input type="text" id="search-input" class="search-box monospace" placeholder="Search symbol (e.g. PEPE, SOL)...">
-        
+        <input type="text" id="search-input" class="search-box monospace"
+          placeholder="Search symbol (e.g. PEPE, SOL)...">
+
         <select id="min-gain-select" class="select-box monospace">
           <option value="25">Min Gain: +25%</option>
           <option value="50">Min Gain: +50%</option>
@@ -123,16 +128,20 @@
         </select>
 
         <div class="mode-btn-group">
-          <button id="btn-mode-all" class="btn-mode active" data-mode="ALL" title="All Safe Zone Pairs (Mode 1 Flash + Mode 2 Double-Top)">
+          <button id="btn-mode-all" class="btn-mode active" data-mode="ALL"
+            title="All Safe Zone Pairs (Mode 1 Flash + Mode 2 Double-Top)">
             🛡️ Safe Zone (<span id="cnt-safe-all">0</span>)
           </button>
-          <button id="btn-mode-1" class="btn-mode" data-mode="MODE_1" title="Mode 1: Fast Flash Decay (Days 2-8 post-Peak 1, Low Vol)">
+          <button id="btn-mode-1" class="btn-mode" data-mode="MODE_1"
+            title="Mode 1: Fast Flash Decay (Days 2-8 post-Peak 1, Low Vol)">
             ⚡ Mode 1 (<span id="cnt-safe-m1">0</span>)
           </button>
-          <button id="btn-mode-2" class="btn-mode btn-mode-2" data-mode="MODE_2" title="Mode 2: Double-Top / Second Run Decay (Rollover post-Peak 2)">
+          <button id="btn-mode-2" class="btn-mode btn-mode-2" data-mode="MODE_2"
+            title="Mode 2: Double-Top / Second Run Decay (Rollover post-Peak 2)">
             🎯 Mode 2 (<span id="cnt-safe-m2">0</span>)
           </button>
-          <button id="btn-mode-any" class="btn-mode" data-mode="OFF" title="Show all active decays, including outside safe zone">
+          <button id="btn-mode-any" class="btn-mode" data-mode="OFF"
+            title="Show all active decays, including outside safe zone">
             🌐 All Coins
           </button>
         </div>
@@ -141,13 +150,16 @@
       <div class="filter-right">
         <div class="sort-btn-group">
           <!-- Default: Closest to 15M Upper Keltner Band -->
-          <button id="sort-keltner-btn" class="btn-sort active" data-sort="keltner" title="Coins touching or closest to 15M Upper Keltner Band">
+          <button id="sort-keltner-btn" class="btn-sort active" data-sort="keltner"
+            title="Coins touching or closest to 15M Upper Keltner Band">
             🔥 15M Upper KC
           </button>
-          <button id="sort-closest-btn" class="btn-sort" data-sort="closest" title="Display coins closest to their origin baseline floor">
+          <button id="sort-closest-btn" class="btn-sort" data-sort="closest"
+            title="Display coins closest to their origin baseline floor">
             🎯 Closest to Base
           </button>
-          <button id="sort-furthest-btn" class="btn-sort" data-sort="furthest" title="Display coins furthest from their origin baseline floor">
+          <button id="sort-furthest-btn" class="btn-sort" data-sort="furthest"
+            title="Display coins furthest from their origin baseline floor">
             🚀 Furthest from Base
           </button>
           <button id="sort-gain-btn" class="btn-sort" data-sort="gain-desc">
@@ -187,14 +199,16 @@
 
       <!-- Interactive Modal Chart Canvas (Defaults to 15M Keltner Bands) -->
       <div class="chart-container" style="margin-bottom: 14px;">
-        <div id="modal-chart-label" class="chart-header-tag monospace">15M Candlestick Chart with Keltner Channel (20 EMA, 2.0 ATR)</div>
+        <div id="modal-chart-label" class="chart-header-tag monospace">15M Candlestick Chart with Keltner Channel (20
+          EMA, 2.0 ATR)</div>
         <canvas id="modal-chart-canvas" class="inline-1d-canvas" width="860" height="240"></canvas>
       </div>
 
       <!-- 15M Keltner Trigger Box -->
       <div class="kc-trigger-box">
         <div class="kc-status-row">
-          <span class="monospace" style="font-size: 11px; color: var(--text-dim); font-weight: 700;">🎯 15M KELTNER BAND TRIGGER (20 EMA, 2.0 ATR)</span>
+          <span class="monospace" style="font-size: 11px; color: var(--text-dim); font-weight: 700;">🎯 15M KELTNER BAND
+            TRIGGER (20 EMA, 2.0 ATR)</span>
           <span id="modal-kc-status-badge" class="badge-tag safe-zone monospace">--</span>
         </div>
         <div class="card-anatomy-row monospace" style="margin-bottom: 0; grid-template-columns: repeat(5, 1fr);">
@@ -222,9 +236,11 @@
       </div>
 
       <!-- Mode 2 Double-Top Pattern Box (Shown when item is Mode 2) -->
-      <div id="modal-mode2-box" class="kc-trigger-box" style="display: none; border-color: rgba(59, 130, 246, 0.4); background: rgba(59, 130, 246, 0.06); margin-bottom: 16px;">
+      <div id="modal-mode2-box" class="kc-trigger-box"
+        style="display: none; border-color: rgba(59, 130, 246, 0.4); background: rgba(59, 130, 246, 0.06); margin-bottom: 16px;">
         <div class="kc-status-row">
-          <span class="monospace" style="font-size: 11px; color: #93c5fd; font-weight: 700;">🎯 MODE 2: DOUBLE-TOP / SECOND RUN EXHAUSTION ANATOMY</span>
+          <span class="monospace" style="font-size: 11px; color: #93c5fd; font-weight: 700;">🎯 MODE 2: DOUBLE-TOP /
+            SECOND RUN EXHAUSTION ANATOMY</span>
           <span id="modal-mode2-badge" class="badge-tag mode2 monospace">DOUBLE-TOP CONFIRMED</span>
         </div>
         <div class="card-anatomy-row monospace" style="margin-bottom: 0; grid-template-columns: repeat(4, 1fr);">
@@ -298,7 +314,7 @@
           <div class="blueprint-item">
             <div class="blueprint-label">Take Profit Target</div>
             <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span id="modal-tp-val" class="blueprint-val" style="color: var(--green);">+$0.80 USDT (0.8%)</span>
+              <span id="modal-tp-val" class="blueprint-val" style="color: var(--green);">+$1.00 USDT (1%)</span>
               <button id="btn-copy-tp" class="btn-copy monospace">Copy</button>
             </div>
           </div>
@@ -309,7 +325,8 @@
         </div>
       </div>
 
-      <div style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+      <div
+        style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
         <span class="monospace" style="font-size: 12px; color: var(--text-dim);">
           Northflank Node Server • Local Port 3000 • Bybit Linear API v5
         </span>
@@ -332,7 +349,8 @@
       </div>
 
       <div class="signals-info-banner monospace">
-        Signals are verified strictly at minute :01, :16, :31, :46 on the previous confirmed 15M candle. Multiple signals are deployed from highest Keltner spread to shortest.
+        Signals are verified strictly at minute :01, :16, :31, :46 on the previous confirmed 15M candle. Multiple
+        signals are deployed from highest Keltner spread to shortest.
       </div>
 
       <div id="signals-list-container" class="signals-list">
@@ -352,9 +370,11 @@
         <button id="bots-modal-close" class="modal-close">&times;</button>
       </div>
 
-      <div class="signals-info-banner monospace" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-        <span>Bot Strategy: 2.0x Leverage • 80 Grids • Range [-20%, +35%] • TP: +0.80 USDT (0.8%)</span>
-        <button id="btn-force-check-bots" class="btn-copy monospace" style="padding: 4px 10px;">🔄 Check Bots Now</button>
+      <div class="signals-info-banner monospace"
+        style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+        <span>Bot Strategy: 2.0x Leverage • 80 Grids • Range [-20%, +35%] • TP: +1.00 USDT (1%)</span>
+        <button id="btn-force-check-bots" class="btn-copy monospace" style="padding: 4px 10px;">🔄 Check Bots
+          Now</button>
       </div>
 
       <!-- Navigation Tabs inside Modal -->
@@ -397,4 +417,5 @@
 
   <script src="app.js"></script>
 </body>
+
 </html>

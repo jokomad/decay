@@ -373,7 +373,7 @@ async function fetchBots() {
             <div style="font-size: 28px; margin-bottom: 8px;">🤖</div>
             <b>No Active Running Grid Bots Right Now</b>
             <p style="margin-top: 6px; font-size: 12px; color: var(--text-dim);">
-              When an OPTIMAL_12 Crossover or SGS-1 signal triggers on a Safe Zone token, a Short Grid Bot (2x Cross, 80 Grids, [-20%, +35%], 0.8% TP) will launch automatically.
+              When an OPTIMAL_12 Crossover or SGS-1 signal triggers on a Safe Zone token, a Short Grid Bot (2x Cross, 80 Grids, [-20%, +35%], 1% TP) will launch automatically.
             </p>
           </div>
         `;
@@ -381,7 +381,7 @@ async function fetchBots() {
         let runningHtml = `<div style="font-size: 11px; font-weight: 700; color: var(--primary); text-transform: uppercase; margin-bottom: 8px;" class="monospace">Active Running Bots (${bots.length})</div>`;
         runningHtml += bots.map(b => {
           const pnl = Number(b.pnl || 0);
-          const tpPct = Number(b.takeProfitPercent || 0.8);
+          const tpPct = Number(b.takeProfitPercent || 1);
           const tpTargetUsdt = (tpPct * 1.0).toFixed(2);
           const pnlColor = pnl >= parseFloat(tpTargetUsdt) ? 'var(--green)' : (pnl > 0 ? '#86efac' : (pnl < 0 ? 'var(--red)' : '#fff'));
           const pnlSign = pnl > 0 ? '+' : '';
@@ -491,7 +491,7 @@ async function fetchBots() {
                 </div>
               </div>
               <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim); margin-top: 6px;" class="monospace">
-                <span>Entry: $${formatPrice(h.entryPrice)} • Target: ${h.takeProfitPercent || 0.8}% Take Profit</span>
+                <span>Entry: $${formatPrice(h.entryPrice)} • Target: ${h.takeProfitPercent || 1}% Take Profit</span>
                 <span>Closed: ${h.archivedAt ? h.archivedAt.replace('T', ' ').substring(0, 19) + ' UTC' : '--'}</span>
               </div>
             </div>
@@ -1393,7 +1393,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('btn-copy-tp').addEventListener('click', function() {
-    copyText('0.80', this);
+    copyText('1.00', this);
   });
 
   // Modal Close
