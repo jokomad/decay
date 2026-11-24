@@ -197,7 +197,7 @@ async function fetchSignals() {
 
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px; font-size: 11px;" class="monospace">
           <span style="color: var(--text-muted);">
-            Suggested Grid: 2.0x • 80 Grids • Range [-$${formatPrice(s.suggestedGrid?.lowerLimit)}, +$${formatPrice(s.suggestedGrid?.upperLimit)}] • TP: +$1.00
+            Suggested Grid: 2.0x • 80 Grids • Range [-$${formatPrice(s.suggestedGrid?.lowerLimit)}, +$${formatPrice(s.suggestedGrid?.upperLimit)}] • TP: +$${(s.suggestedGrid?.takeProfitUsdt || 0.80).toFixed(2)}
           </span>
           <a href="https://www.bybit.com/trade/usdt/${s.symbol}" target="_blank" class="btn-copy" style="text-decoration: none;">
             Open on Bybit ↗
@@ -268,12 +268,12 @@ async function fetchBots() {
           <div class="stat-card" style="padding: 10px 14px; background: rgba(13, 17, 26, 0.9);">
             <div class="stat-label">Avg Hold Time</div>
             <div class="stat-val monospace" style="font-size: 20px; color: #7dd3fc;">${totals.avgHoldTimeText || '--'}</div>
-            <div style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">Trigger to 1% TP</div>
+            <div style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">Trigger to TP</div>
           </div>
           <div class="stat-card" style="padding: 10px 14px; background: rgba(13, 17, 26, 0.9);">
             <div class="stat-label">Fastest TP</div>
             <div class="stat-val monospace" style="font-size: 20px; color: var(--amber);">⚡ ${totals.fastestTpText || '--'}</div>
-            <div style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">Quickest 1% Exit</div>
+            <div style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">Quickest Exit</div>
           </div>
         </div>
 
@@ -373,7 +373,7 @@ async function fetchBots() {
             <div style="font-size: 28px; margin-bottom: 8px;">🤖</div>
             <b>No Active Running Grid Bots Right Now</b>
             <p style="margin-top: 6px; font-size: 12px; color: var(--text-dim);">
-              When an OPTIMAL_12 Crossover or SGS-1 signal triggers on a Safe Zone token, a Short Grid Bot (2x Cross, 80 Grids, 1% TP) will launch automatically.
+              When an OPTIMAL_12 Crossover or SGS-1 signal triggers on a Safe Zone token, a Short Grid Bot (2x Cross, 80 Grids, [-20%, +35%], 0.8% TP) will launch automatically.
             </p>
           </div>
         `;
@@ -381,7 +381,9 @@ async function fetchBots() {
         let runningHtml = `<div style="font-size: 11px; font-weight: 700; color: var(--primary); text-transform: uppercase; margin-bottom: 8px;" class="monospace">Active Running Bots (${bots.length})</div>`;
         runningHtml += bots.map(b => {
           const pnl = Number(b.pnl || 0);
-          const pnlColor = pnl >= 1.00 ? 'var(--green)' : (pnl > 0 ? '#86efac' : (pnl < 0 ? 'var(--red)' : '#fff'));
+          const tpPct = Number(b.takeProfitPercent || 0.8);
+          const tpTargetUsdt = (tpPct * 1.0).toFixed(2);
+          const pnlColor = pnl >= parseFloat(tpTargetUsdt) ? 'var(--green)' : (pnl > 0 ? '#86efac' : (pnl < 0 ? 'var(--red)' : '#fff'));
           const pnlSign = pnl > 0 ? '+' : '';
 
           const sigLabel = b.crossover?.pairId
@@ -389,7 +391,7 @@ async function fetchBots() {
             : (b.signalType === 'SGS_1' ? '🛡️ SGS-1 SAFETY FILTER' : `⚡ ${b.signalType || 'FIRST_TOUCH'}`);
 
           return `
-            <div class="signal-card ${pnl >= 1.00 ? 'first-touch' : ''}">
+            <div class="signal-card ${pnl >= parseFloat(tpTargetUsdt) ? 'first-touch' : ''}">
               <div class="signal-header-row monospace">
                 <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                   <b style="font-size: 16px; color: #fff;">${b.symbol}</b>
@@ -398,7 +400,7 @@ async function fetchBots() {
                     80 GRIDS
                   </span>
                   <span class="badge-tag" style="background: rgba(16, 185, 129, 0.15); color: #86efac; border: 1px solid rgba(16, 185, 129, 0.3);">
-                    TP: +$1.00 (1%)
+                    TP: +$${tpTargetUsdt} (${tpPct}%)
                   </span>
                   <span class="badge-tag" style="background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); font-weight: 700;">
                     ${sigLabel}
@@ -420,15 +422,15 @@ async function fetchBots() {
                   <b>$${formatPrice(b.entryPrice)}</b>
                 </div>
                 <div>
-                  <span style="color: var(--text-dim);">Lower Limit (-30%):</span>
+                  <span style="color: var(--text-dim);">Lower Limit:</span>
                   <b style="color: var(--green);">$${formatPrice(b.minPrice)}</b>
                 </div>
                 <div>
-                  <span style="color: var(--text-dim);">Upper Limit (+70%):</span>
+                  <span style="color: var(--text-dim);">Upper Limit:</span>
                   <b style="color: var(--red);">$${formatPrice(b.maxPrice)}</b>
                 </div>
                 <div>
-                  <span style="color: var(--text-dim);">Live PnL (Target: $1.00):</span>
+                  <span style="color: var(--text-dim);">Live PnL (Target: $${tpTargetUsdt}):</span>
                   <b style="color: ${pnlColor}; font-size: 13px;">${pnlSign}$${pnl.toFixed(4)} USDT</b>
                 </div>
               </div>
@@ -489,7 +491,7 @@ async function fetchBots() {
                 </div>
               </div>
               <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim); margin-top: 6px;" class="monospace">
-                <span>Entry: $${formatPrice(h.entryPrice)} • Target: 1% Take Profit</span>
+                <span>Entry: $${formatPrice(h.entryPrice)} • Target: ${h.takeProfitPercent || 0.8}% Take Profit</span>
                 <span>Closed: ${h.archivedAt ? h.archivedAt.replace('T', ' ').substring(0, 19) + ' UTC' : '--'}</span>
               </div>
             </div>
@@ -1179,9 +1181,9 @@ function openModal(item) {
   document.getElementById('modal-base-val').textContent = `$${formatPrice(item.basePrice)}`;
   document.getElementById('modal-room-val').textContent = `-${item.downsidePct.toFixed(1)}%`;
 
-  // Calculated 2.0x Short Grid Limits
-  const upperLimit = item.currentPrice * 1.70; // +70%
-  const lowerLimit = item.currentPrice * 0.70; // -30%
+  // Calculated 2.0x Short Grid Limits [-20%, +35%]
+  const upperLimit = item.currentPrice * 1.35; // +35%
+  const lowerLimit = item.currentPrice * 0.80; // -20%
 
   document.getElementById('modal-upper-limit').textContent = `$${formatPrice(upperLimit)}`;
   document.getElementById('modal-lower-limit').textContent = `$${formatPrice(lowerLimit)}`;
@@ -1378,20 +1380,20 @@ document.addEventListener('DOMContentLoaded', () => {
   // Copy Buttons in Modal
   document.getElementById('btn-copy-upper').addEventListener('click', function() {
     if (currentModalItem) {
-      const val = (currentModalItem.currentPrice * 1.70).toFixed(6);
+      const val = (currentModalItem.currentPrice * 1.35).toFixed(6);
       copyText(val, this);
     }
   });
 
   document.getElementById('btn-copy-lower').addEventListener('click', function() {
     if (currentModalItem) {
-      const val = (currentModalItem.currentPrice * 0.70).toFixed(6);
+      const val = (currentModalItem.currentPrice * 0.80).toFixed(6);
       copyText(val, this);
     }
   });
 
   document.getElementById('btn-copy-tp').addEventListener('click', function() {
-    copyText('1.00', this);
+    copyText('0.80', this);
   });
 
   // Modal Close
